@@ -24,16 +24,6 @@ struct ContentView: View {
         }
         .frame(width: 300, height: 200)
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .strokeBorder(
-                    isDropTargeted
-                        ? Color.accentColor.opacity(0.55)
-                        : Color.white.opacity(0.12),
-                    lineWidth: isDropTargeted ? 1.5 : 1
-                )
-        }
-        .shadow(color: .black.opacity(0.10), radius: 14, x: 0, y: 6)
         .onHover { isHovering in
             onHoverChanged(isHovering)
         }
@@ -152,11 +142,31 @@ struct ContentView: View {
                         dragHandle: {
                             ZStack {
                                 FileIcon(url: item.url)
-
                                 FileDragSource(
                                     item: item,
-                                    onSuccessfulDrag: {
-                                        store.remove(item)
+                                    onDragCompleted: { operation in
+                                        if operation.contains(.move) {
+                                            print(
+                                                "File moved by destination:",
+                                                item.url.path
+                                            )
+
+                                            store.remove(item)
+                                        } else if operation.contains(.copy) {
+                                            print(
+                                                "File copied by destination:",
+                                                item.url.path
+                                            )
+
+                                            store.remove(item)
+                                        } else {
+                                            print(
+                                                "Drag completed with operation:",
+                                                operation.rawValue
+                                            )
+
+                                            store.remove(item)
+                                        }
                                     }
                                 )
                             }
@@ -177,19 +187,6 @@ struct ContentView: View {
                             store.remove(item)
                         }
                     )
-                    .overlay {
-                        FileDragSource(
-                            item: item,
-                            onSuccessfulDrag: {
-                                store.remove(item)
-
-                                print(
-                                    "Removed after successful drag-out:",
-                                    item.url.path
-                                )
-                            }
-                        )
-                    }
                 }
             }
             .padding(10)

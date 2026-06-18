@@ -3,12 +3,12 @@ import SwiftUI
 
 struct FileDragSource: NSViewRepresentable {
     let item: ShelfItem
-    let onSuccessfulDrag: () -> Void
+    let onDragCompleted: (NSDragOperation) -> Void
 
     func makeNSView(context: Context) -> FileDragSourceView {
         let view = FileDragSourceView()
         view.item = item
-        view.onSuccessfulDrag = onSuccessfulDrag
+        view.onDragCompleted = onDragCompleted
         return view
     }
 
@@ -17,52 +17,95 @@ struct FileDragSource: NSViewRepresentable {
         context: Context
     ) {
         view.item = item
-        view.onSuccessfulDrag = onSuccessfulDrag
+        view.onDragCompleted = onDragCompleted
     }
 }
 
 final class FileDragSourceView: NSView, NSDraggingSource {
     var item: ShelfItem?
-    var onSuccessfulDrag: (() -> Void)?
+    var onDragCompleted: ((NSDragOperation) -> Void)?
+
+    private var mouseDownEvent: NSEvent?
+    private var hasStartedDragging = false
+
+    override func mouseDown(with event: NSEvent) {
+        mouseDownEvent = event
+        hasStartedDragging = false
+    }
 
     override func mouseDragged(with event: NSEvent) {
-        guard let item else { return }
+        guard !hasStartedDragging,
+            let item,
+            let mouseDownEvent
+        else {
+            return
+        }
 
-        let pasteboardItem = NSPasteboardItem()
-        pasteboardItem.setString(
-            item.url.absoluteString,
-            forType: .fileURL
-        )
+        hasStartedDragging = true
 
+        /*
+         Use NSURL directly as the pasteboard writer.
+
+         This identifies the drag as an existing filesystem item,
+         rather than a promised/generated copy.
+        */
         let draggingItem = NSDraggingItem(
-            pasteboardWriter: pasteboardItem
+            pasteboardWriter: item.url as NSURL
         )
 
         let icon = NSWorkspace.shared.icon(
             forFile: item.url.path
         )
 
-        let size = NSSize(width: 48, height: 48)
+        let dragSize = NSSize(width: 48, height: 48)
+
+        let locationInView = convert(
+            mouseDownEvent.locationInWindow,
+            from: nil
+        )
+
         draggingItem.setDraggingFrame(
             NSRect(
-                origin: convert(event.locationInWindow, from: nil),
-                size: size
+                x: locationInView.x - dragSize.width / 2,
+                y: locationInView.y - dragSize.height / 2,
+                width: dragSize.width,
+                height: dragSize.height
             ),
             contents: icon
         )
 
-        beginDraggingSession(
+        let session = beginDraggingSession(
             with: [draggingItem],
-            event: event,
+            event: mouseDownEvent,
             source: self
         )
+
+        session.animatesToStartingPositionsOnCancelOrFail = true
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        mouseDownEvent = nil
+        hasStartedDragging = false
     }
 
     func draggingSession(
         _ session: NSDraggingSession,
         sourceOperationMaskFor context: NSDraggingContext
     ) -> NSDragOperation {
-        .copy
+        switch context {
+        case .outsideApplication:
+            /*
+             Allow Finder or another external destination to negotiate
+             either copy or move.
+            */
+            return [.copy, .move]
+
+        case .withinApplication:
+            return .copy
+
+        @unknown default:
+            return .copy
+        }
     }
 
     func draggingSession(
@@ -70,13 +113,16 @@ final class FileDragSourceView: NSView, NSDraggingSource {
         endedAt screenPoint: NSPoint,
         operation: NSDragOperation
     ) {
-        guard operation != [] else {
-            print("Drag cancelled.")
+        mouseDownEvent = nil
+        hasStartedDragging = false
+
+        guard !operation.isEmpty else {
+            print("Drag cancelled or rejected.")
             return
         }
 
         DispatchQueue.main.async { [weak self] in
-            self?.onSuccessfulDrag?()
+            self?.onDragCompleted?(operation)
         }
     }
 }
