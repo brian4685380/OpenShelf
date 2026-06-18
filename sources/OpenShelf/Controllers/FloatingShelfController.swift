@@ -9,6 +9,7 @@ final class FloatingShelfController {
 
     private var currentScreen: NSScreen?
     private var currentEdge: ShelfEdge = .right
+    private var currentTriggerY: CGFloat?
     private var isCollapsed = false
 
     private let panelSize = NSSize(width: 380, height: 280)
@@ -16,7 +17,11 @@ final class FloatingShelfController {
     private let screenPadding: CGFloat = 8
     private let animationDuration: TimeInterval = 0.22
 
-    func show(on screen: NSScreen? = nil, edge: ShelfEdge = .right) {
+    func show(
+        on screen: NSScreen? = nil,
+        edge: ShelfEdge = .right,
+        triggerY: CGFloat? = nil
+    ) {
         cancelHide()
         if panel == nil {
             panel = makePanel()
@@ -24,13 +29,18 @@ final class FloatingShelfController {
         guard let panel else { return }
         currentScreen = screen ?? NSScreen.main
         currentEdge = edge
+        if let triggerY {
+            currentTriggerY = triggerY
+        }
         isCollapsed = false
-        let expanded = frameForExpandedState(on: currentScreen, edge: currentEdge)
-        panel.level = .statusBar  // ensure it floats above other windows
-        panel.setFrame(expanded, display: true)
+        let expandedFrame = frameForExpandedState(
+            on: currentScreen,
+            edge: currentEdge
+        )
+        panel.level = .statusBar
+        panel.setFrame(expandedFrame, display: true)
         panel.orderFrontRegardless()
     }
-
     func collapse(after delay: TimeInterval = 0.0) {
         hideWorkItem?.cancel()
 
@@ -95,6 +105,23 @@ final class FloatingShelfController {
         isCollapsed = false
 
         print("Shelf closed.")
+    }
+
+    private func shelfOriginY(in screenFrame: NSRect) -> CGFloat {
+        let preferredCenterY = currentTriggerY ?? screenFrame.midY
+
+        let minimumCenterY =
+            screenFrame.minY + panelSize.height / 2
+
+        let maximumCenterY =
+            screenFrame.maxY - panelSize.height / 2
+
+        let clampedCenterY = min(
+            max(preferredCenterY, minimumCenterY),
+            maximumCenterY
+        )
+
+        return clampedCenterY - panelSize.height / 2
     }
 
     private func makePanel() -> NSPanel {
@@ -226,7 +253,7 @@ final class FloatingShelfController {
             x = screenFrame.maxX - panelSize.width - screenPadding
         }
 
-        let y = screenFrame.midY - panelSize.height / 2
+        let y = shelfOriginY(in: screenFrame)
 
         return NSRect(
             x: x,
@@ -263,7 +290,7 @@ final class FloatingShelfController {
             x = screenFrame.maxX - visibleTabWidth
         }
 
-        let y = screenFrame.midY - panelSize.height / 2
+        let y = shelfOriginY(in: screenFrame)
 
         return NSRect(
             x: x,

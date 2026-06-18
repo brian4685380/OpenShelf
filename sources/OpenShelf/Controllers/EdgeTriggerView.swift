@@ -43,15 +43,28 @@ final class EdgeTriggerView: NSView {
             print("Drag entered right edge.")
         }
 
-        shelfController?.show(on: screen, edge: edge)
+        shelfController?.show(on: screen, edge: edge, triggerY: triggerPositionY(from: sender))
         return .copy
     }
 
     override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation {
-        shelfController?.show(on: screen, edge: edge)
+        shelfController?.show(on: screen, edge: edge, triggerY: triggerPositionY(from: sender))
         return .copy
     }
 
     override func draggingExited(_ sender: NSDraggingInfo?) {
+    }
+
+    private func triggerPositionY(
+        from sender: NSDraggingInfo
+    ) -> CGFloat? {
+        guard let window else {
+            return nil
+        }
+
+        let pointInWindow = sender.draggingLocation
+        let pointOnScreen = window.convertPoint(toScreen: pointInWindow)
+
+        return pointOnScreen.y
     }
 }
