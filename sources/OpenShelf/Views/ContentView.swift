@@ -37,20 +37,25 @@ struct ContentView: View {
 
     private var header: some View {
         HStack(spacing: 8) {
-            HStack(spacing: 8) {
-                Image(systemName: "tray")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(.secondary)
+            ZStack {
+                HStack(spacing: 8) {
+                    Image(systemName: "tray")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(.secondary)
 
-                Text("OpenShelf")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(.primary)
+                    Text("OpenShelf")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(.primary)
 
-                Spacer()
-            }
-            .background {
+                    Spacer()
+                }
+                .allowsHitTesting(false)
+
+                // Covers only the title region.
                 WindowDragArea()
             }
+            .frame(maxWidth: .infinity)
+            .frame(height: 20)
 
             if !store.items.isEmpty {
                 Text("\(store.items.count)")
@@ -90,6 +95,7 @@ struct ContentView: View {
             .foregroundStyle(.secondary)
             .help("Close shelf")
         }
+        .frame(height: 20)
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
         .background(
