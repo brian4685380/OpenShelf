@@ -8,8 +8,11 @@ struct FileDragSource: NSViewRepresentable {
 
     func makeNSView(context: Context) -> FileDragSourceView {
         let view = FileDragSourceView()
+
         view.item = item
         view.onDragCompleted = onDragCompleted
+        view.onDoubleClick = onDoubleClick
+
         return view
     }
 
@@ -19,6 +22,7 @@ struct FileDragSource: NSViewRepresentable {
     ) {
         view.item = item
         view.onDragCompleted = onDragCompleted
+        view.onDoubleClick = onDoubleClick
     }
 }
 
@@ -28,15 +32,16 @@ final class FileDragSourceView: NSView, NSDraggingSource {
     var onDoubleClick: (() -> Void)?
 
     private var mouseDownEvent: NSEvent?
+    private var mouseDownClickCount = 0
     private var hasStartedDragging = false
 
-    override func mouseDown(with event: NSEvent) {
-        if event.clickCount == 2 {
-            onDoubleClick?()
-            return
-        }
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
+        true
+    }
 
+    override func mouseDown(with event: NSEvent) {
         mouseDownEvent = event
+        mouseDownClickCount = event.clickCount
         hasStartedDragging = false
     }
 
@@ -50,12 +55,6 @@ final class FileDragSourceView: NSView, NSDraggingSource {
 
         hasStartedDragging = true
 
-        /*
-         Use NSURL directly as the pasteboard writer.
-
-         This identifies the drag as an existing filesystem item,
-         rather than a promised/generated copy.
-        */
         let draggingItem = NSDraggingItem(
             pasteboardWriter: item.url as NSURL
         )
@@ -91,8 +90,21 @@ final class FileDragSourceView: NSView, NSDraggingSource {
     }
 
     override func mouseUp(with event: NSEvent) {
-        mouseDownEvent = nil
-        hasStartedDragging = false
+        defer {
+            mouseDownEvent = nil
+            mouseDownClickCount = 0
+            hasStartedDragging = false
+        }
+
+        guard !hasStartedDragging else {
+            return
+        }
+
+        if mouseDownClickCount == 2 {
+            DispatchQueue.main.async { [weak self] in
+                self?.onDoubleClick?()
+            }
+        }
     }
 
     func draggingSession(
@@ -101,10 +113,6 @@ final class FileDragSourceView: NSView, NSDraggingSource {
     ) -> NSDragOperation {
         switch context {
         case .outsideApplication:
-            /*
-             Allow Finder or another external destination to negotiate
-             either copy or move.
-            */
             return [.copy, .move]
 
         case .withinApplication:
@@ -121,6 +129,7 @@ final class FileDragSourceView: NSView, NSDraggingSource {
         operation: NSDragOperation
     ) {
         mouseDownEvent = nil
+        mouseDownClickCount = 0
         hasStartedDragging = false
 
         guard !operation.isEmpty else {
