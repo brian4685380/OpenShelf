@@ -86,11 +86,25 @@ final class FloatingShelfController {
         hideWorkItem = nil
     }
 
+    func closeShelf() {
+        cancelHide()
+
+        guard let panel else { return }
+
+        panel.orderOut(nil)
+        isCollapsed = false
+
+        print("Shelf closed.")
+    }
+
     private func makePanel() -> NSPanel {
         let rootView = ContentView(
             store: store,
             onHoverChanged: { [weak self] isHovering in
                 self?.handleHoverChanged(isHovering)
+            },
+            onClose: { [weak self] in
+                self?.closeShelf()
             }
         )
 
@@ -117,7 +131,7 @@ final class FloatingShelfController {
         panel.level = .floating
         panel.isFloatingPanel = true
         panel.hidesOnDeactivate = false
-        panel.isMovableByWindowBackground = true
+        panel.isMovableByWindowBackground = false
 
         panel.isOpaque = false
         panel.backgroundColor = .clear
@@ -144,7 +158,7 @@ final class FloatingShelfController {
         } else {
             // Do NOT immediately lower the level here.
             // Keep it on top during the 3-second delay.
-            collapse(after: 2.0)
+            collapse(after: 3.0)
 
             print("Shelf hover exited: collapse scheduled.")
         }
@@ -160,11 +174,29 @@ final class FloatingShelfController {
             edge: currentEdge
         )
 
-        animate(panel: panel, to: collapsedFrame)
-        panel.level = .floating
+        let shouldCloseAfterCollapse = store.items.isEmpty
 
-        print("Shelf collapsed to edge; always-on-top disabled.")
+        animate(
+            panel: panel,
+            to: collapsedFrame
+        ) { [weak self, weak panel] in
+            guard let self, let panel else { return }
 
+            /*
+             Recheck the store after animation in case an item was added
+             while the shelf was collapsing.
+            */
+            if shouldCloseAfterCollapse && self.store.items.isEmpty {
+                panel.orderOut(nil)
+                self.isCollapsed = false
+
+                print("Empty shelf collapsed and closed.")
+            } else {
+                panel.level = .floating
+
+                print("Shelf collapsed to edge.")
+            }
+        }
     }
 
     private func frameForExpandedState(
@@ -241,12 +273,21 @@ final class FloatingShelfController {
         )
     }
 
-    private func animate(panel: NSPanel, to frame: NSRect) {
+    private func animate(
+        panel: NSPanel,
+        to frame: NSRect,
+        completion: (() -> Void)? = nil
+    ) {
         NSAnimationContext.runAnimationGroup { context in
             context.duration = animationDuration
-            context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            context.timingFunction = CAMediaTimingFunction(
+                name: .easeInEaseOut
+            )
 
             panel.animator().setFrame(frame, display: true)
+        } completionHandler: {
+            completion?()
         }
     }
+
 }

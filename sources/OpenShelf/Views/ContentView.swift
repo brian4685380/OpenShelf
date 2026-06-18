@@ -5,6 +5,7 @@ import UniformTypeIdentifiers
 struct ContentView: View {
     @ObservedObject var store: ShelfStore
     let onHoverChanged: (Bool) -> Void
+    let onClose: () -> Void
 
     @State private var isDropTargeted = false
 
@@ -47,15 +48,20 @@ struct ContentView: View {
 
     private var header: some View {
         HStack(spacing: 8) {
-            Image(systemName: "tray")
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(.secondary)
+            HStack(spacing: 8) {
+                Image(systemName: "tray")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(.secondary)
 
-            Text("OpenShelf")
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(.primary)
+                Text("OpenShelf")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.primary)
 
-            Spacer()
+                Spacer()
+            }
+            .background {
+                WindowDragArea()
+            }
 
             if !store.items.isEmpty {
                 Text("\(store.items.count)")
@@ -72,12 +78,28 @@ struct ContentView: View {
                     store.clear()
                 } label: {
                     Image(systemName: "trash")
-                        .font(.system(size: 12, weight: .medium))
+                        .font(.system(size: 11, weight: .medium))
+                        .frame(width: 20, height: 20)
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(.secondary)
                 .help("Clear shelf")
             }
+
+            Button {
+                onClose()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 10, weight: .semibold))
+                    .frame(width: 20, height: 20)
+                    .background {
+                        Circle()
+                            .fill(Color.secondary.opacity(0.10))
+                    }
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+            .help("Close shelf")
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
