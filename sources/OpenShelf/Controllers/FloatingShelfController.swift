@@ -148,6 +148,9 @@ final class FloatingShelfController {
             },
             onClose: { [weak self] in
                 self?.closeShelf()
+            },
+            onDropTargetChanged: { [weak self] isTargeted in
+                self?.handleDropTargetChanged(isTargeted)
             }
         )
 
@@ -207,6 +210,55 @@ final class FloatingShelfController {
             collapse(after: 3.0)
 
             print("Shelf hover exited: collapse scheduled.")
+        }
+    }
+
+    private func handleDropTargetChanged(_ isTargeted: Bool) {
+        guard let panel else { return }
+
+        if isTargeted {
+            // A file drag entered the collapsed tab.
+            // Do not wait for the normal mouse-hover event.
+            cancelHide()
+
+            panel.level = .statusBar
+            panel.orderFrontRegardless()
+
+            if isCollapsed {
+                expandImmediately()
+            }
+
+            print("Drag entered shelf drop region.")
+        } else {
+            print("Drag left shelf drop region.")
+        }
+    }
+
+    private func expandImmediately() {
+        cancelHide()
+
+        guard let panel else { return }
+
+        isCollapsed = false
+
+        let expandedFrame = frameForExpandedState(
+            on: currentScreen,
+            edge: currentEdge
+        )
+
+        panel.level = .statusBar
+        panel.orderFrontRegardless()
+
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.10
+            context.timingFunction = CAMediaTimingFunction(
+                name: .easeOut
+            )
+
+            panel.animator().setFrame(
+                expandedFrame,
+                display: true
+            )
         }
     }
 

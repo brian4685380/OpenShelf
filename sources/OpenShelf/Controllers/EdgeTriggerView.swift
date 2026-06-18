@@ -48,9 +48,10 @@ final class EdgeTriggerView: NSView {
         return .copy
     }
 
-    override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation {
-        shelfController?.show(on: screen, edge: edge, triggerY: triggerPositionY(from: sender))
-        return .copy
+    override func draggingUpdated(
+        _ sender: NSDraggingInfo
+    ) -> NSDragOperation {
+        .copy
     }
 
     override func draggingExited(_ sender: NSDraggingInfo?) {

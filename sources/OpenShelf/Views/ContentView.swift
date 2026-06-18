@@ -6,6 +6,7 @@ struct ContentView: View {
     @ObservedObject var store: ShelfStore
     let onHoverChanged: (Bool) -> Void
     let onClose: () -> Void
+    let onDropTargetChanged: (Bool) -> Void
 
     @State private var isDropTargeted = false
 
@@ -26,6 +27,9 @@ struct ContentView: View {
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .onHover { isHovering in
             onHoverChanged(isHovering)
+        }
+        .onChange(of: isDropTargeted) { isTargeted in
+            onDropTargetChanged(isTargeted)
         }
         .onDrop(
             of: [UTType.fileURL.identifier],
