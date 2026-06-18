@@ -9,33 +9,54 @@ struct ShelfRow: View {
     let onCopyPath: () -> Void
     let onRemove: () -> Void
 
+    @State private var isHovering = false
+
     var body: some View {
         HStack(spacing: 10) {
             FileIcon(url: item.url)
 
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 3) {
                 Text(item.url.lastPathComponent)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(.primary)
                     .lineLimit(1)
+                    .truncationMode(.middle)
 
                 Text(item.url.deletingLastPathComponent().path)
-                    .font(.caption)
+                    .font(.system(size: 11))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
+                    .truncationMode(.middle)
             }
 
-            Spacer()
+            Spacer(minLength: 8)
 
             Button {
                 onRemove()
             } label: {
-                Image(systemName: "xmark.circle")
+                Image(systemName: "xmark")
+                    .font(.system(size: 10, weight: .bold))
+                    .frame(width: 18, height: 18)
+                    .background {
+                        Circle()
+                            .fill(Color.secondary.opacity(isHovering ? 0.14 : 0.0))
+                    }
             }
             .buttonStyle(.plain)
             .foregroundStyle(.secondary)
+            .opacity(isHovering ? 1 : 0)
             .help("Remove from shelf")
         }
-        .padding(.vertical, 4)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(isHovering ? Color.secondary.opacity(0.10) : Color.clear)
+        }
         .contentShape(Rectangle())
+        .onHover { hovering in
+            isHovering = hovering
+        }
         .onTapGesture(count: 2) {
             onOpen()
         }
