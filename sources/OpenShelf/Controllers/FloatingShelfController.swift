@@ -127,6 +127,19 @@ final class FloatingShelfController {
         return clampedCenterY - panelSize.height / 2
     }
 
+    private func clampedOriginY(
+        _ proposedY: CGFloat,
+        in screenFrame: NSRect
+    ) -> CGFloat {
+        let minimumY = screenFrame.minY
+        let maximumY = screenFrame.maxY - panelSize.height
+
+        return min(
+            max(proposedY, minimumY),
+            maximumY
+        )
+    }
+
     private func makePanel() -> NSPanel {
         let rootView = ContentView(
             store: store,
@@ -197,11 +210,40 @@ final class FloatingShelfController {
     private func collapseNow() {
         guard let panel else { return }
 
+        let targetScreen = screenContaining(panel) ?? currentScreen ?? NSScreen.main
+
+        guard let targetScreen else { return }
+
+        let screenFrame = targetScreen.visibleFrame
+        let panelFrame = panel.frame
+
+        /*
+         Decide which edge is closer to the shelf's current horizontal position.
+        */
+        let distanceToLeft = abs(panelFrame.minX - screenFrame.minX)
+        let distanceToRight = abs(screenFrame.maxX - panelFrame.maxX)
+
+        let collapseEdge: ShelfEdge =
+            distanceToLeft <= distanceToRight ? .left : .right
+
+        /*
+         Preserve the shelf's current vertical position.
+         Clamp it so the panel stays within the screen vertically.
+        */
+        let preservedY = clampedOriginY(
+            panelFrame.origin.y,
+            in: screenFrame
+        )
+
+        currentScreen = targetScreen
+        currentEdge = collapseEdge
+        currentTriggerY = preservedY + panelSize.height / 2
         isCollapsed = true
 
         let collapsedFrame = frameForCollapsedState(
-            on: currentScreen,
-            edge: currentEdge
+            on: targetScreen,
+            edge: collapseEdge,
+            originY: preservedY
         )
 
         let shouldCloseAfterCollapse = store.items.isEmpty
@@ -221,7 +263,10 @@ final class FloatingShelfController {
                 } else {
                     panel.level = .floating
 
-                    print("Shelf collapsed to edge.")
+                    print(
+                        "Shelf collapsed to",
+                        collapseEdge == .left ? "left edge." : "right edge."
+                    )
                 }
             }
         }
@@ -264,9 +309,25 @@ final class FloatingShelfController {
         )
     }
 
+    private func screenContaining(_ panel: NSPanel) -> NSScreen? {
+        if let screen = panel.screen {
+            return screen
+        }
+
+        let panelCenter = NSPoint(
+            x: panel.frame.midX,
+            y: panel.frame.midY
+        )
+
+        return NSScreen.screens.first { screen in
+            screen.frame.contains(panelCenter)
+        }
+    }
+
     private func frameForCollapsedState(
         on screen: NSScreen?,
-        edge: ShelfEdge
+        edge: ShelfEdge,
+        originY: CGFloat? = nil
     ) -> NSRect {
         let targetScreen = screen ?? NSScreen.main
 
@@ -291,7 +352,13 @@ final class FloatingShelfController {
             x = screenFrame.maxX - visibleTabWidth
         }
 
-        let y = shelfOriginY(in: screenFrame)
+        let y: CGFloat
+
+        if let originY {
+            y = clampedOriginY(originY, in: screenFrame)
+        } else {
+            y = shelfOriginY(in: screenFrame)
+        }
 
         return NSRect(
             x: x,
