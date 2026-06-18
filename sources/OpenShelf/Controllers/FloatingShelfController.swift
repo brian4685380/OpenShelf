@@ -182,6 +182,13 @@ final class FloatingShelfController {
         panel.hidesOnDeactivate = false
         panel.isMovableByWindowBackground = false
 
+        panel.collectionBehavior = [
+            .canJoinAllSpaces,
+            .fullScreenAuxiliary,
+            .stationary,
+            .ignoresCycle,
+        ]
+
         panel.isOpaque = false
         panel.backgroundColor = .clear
         panel.hasShadow = false
@@ -316,7 +323,8 @@ final class FloatingShelfController {
 
                     print("Empty shelf collapsed and closed.")
                 } else {
-                    panel.level = .floating
+                    panel.level = .statusBar
+                    panel.orderFrontRegardless()
 
                     print(
                         "Shelf collapsed to",
