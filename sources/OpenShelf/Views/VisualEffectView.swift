@@ -11,14 +11,22 @@ struct VisualEffectView: NSViewRepresentable {
         view.material = material
         view.blendingMode = blendingMode
         view.state = .active
+        view.isEmphasized = false
+
         view.wantsLayer = true
+        view.layer?.backgroundColor = NSColor.clear.cgColor
 
         return view
     }
 
-    func updateNSView(_ view: NSVisualEffectView, context: Context) {
+    func updateNSView(
+        _ view: NSVisualEffectView,
+        context: Context
+    ) {
         view.material = material
         view.blendingMode = blendingMode
         view.state = .active
+        view.isEmphasized = false
+        view.layer?.backgroundColor = NSColor.clear.cgColor
     }
 }

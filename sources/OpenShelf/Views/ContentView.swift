@@ -22,11 +22,10 @@ struct ContentView: View {
                 itemList
             }
         }
-        .frame(width: 380, height: 280)
-        .background(backgroundView)
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .frame(width: 300, height: 200)
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .overlay {
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .strokeBorder(
                     isDropTargeted
                         ? Color.accentColor.opacity(0.55)
@@ -34,7 +33,7 @@ struct ContentView: View {
                     lineWidth: isDropTargeted ? 1.5 : 1
                 )
         }
-        .shadow(color: .black.opacity(0.18), radius: 24, x: 0, y: 12)
+        .shadow(color: .black.opacity(0.10), radius: 14, x: 0, y: 6)
         .onHover { isHovering in
             onHoverChanged(isHovering)
         }
@@ -101,8 +100,11 @@ struct ContentView: View {
             .foregroundStyle(.secondary)
             .help("Close shelf")
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(
+            Color(nsColor: .windowBackgroundColor)
+        )
     }
 
     private var emptyState: some View {
@@ -131,10 +133,12 @@ struct ContentView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background {
-            if isDropTargeted {
-                Color.accentColor.opacity(0.08)
-            } else {
-                Color.clear
+            ZStack {
+                Color.black.opacity(0.5)
+
+                if isDropTargeted {
+                    Color.accentColor.opacity(0.08)
+                }
             }
         }
     }
@@ -191,24 +195,18 @@ struct ContentView: View {
             .padding(10)
         }
         .background {
-            if isDropTargeted {
-                Color.accentColor.opacity(0.08)
-            } else {
-                Color.clear
+            ZStack {
+                Color.black.opacity(0.5)
+
+                if isDropTargeted {
+                    Color.accentColor.opacity(0.08)
+                }
             }
         }
     }
 
     private var backgroundView: some View {
-        ZStack {
-            VisualEffectView(
-                material: .hudWindow,
-                blendingMode: .behindWindow
-            )
-
-            Color(nsColor: .windowBackgroundColor)
-                .opacity(0.55)
-        }
+        Color.black.opacity(0.5)
     }
 
     private func handleDrop(_ providers: [NSItemProvider]) -> Bool {

@@ -13,7 +13,7 @@ final class FloatingShelfController {
     private var currentTriggerY: CGFloat?
     private var isCollapsed = false
 
-    private let panelSize = NSSize(width: 380, height: 280)
+    private let panelSize = NSSize(width: 300, height: 200)
     private let visibleTabWidth: CGFloat = 32
     private let screenPadding: CGFloat = 8
     private let animationDuration: TimeInterval = 0.22
@@ -152,6 +152,9 @@ final class FloatingShelfController {
         )
 
         let hostingView = NSHostingView(rootView: rootView)
+        hostingView.wantsLayer = true
+        hostingView.layer?.backgroundColor = NSColor.clear.cgColor
+        hostingView.layer?.isOpaque = false
 
         let panel = NSPanel(
             contentRect: NSRect(
