@@ -133,7 +133,14 @@ final class FileDragSourceView: NSView, NSDraggingSource {
         hasStartedDragging = false
 
         guard !operation.isEmpty else {
-            print("Drag cancelled or rejected.")
+            print("Drag cancelled or returned to shelf.")
+            return
+        }
+
+        if let window,
+            window.frame.contains(screenPoint)
+        {
+            print("File returned to OpenShelf; keeping shlef item.")
             return
         }
 

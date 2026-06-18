@@ -190,7 +190,17 @@ struct ContentView: View {
     }
 
     private func handleDrop(_ providers: [NSItemProvider]) -> Bool {
-        for provider in providers {
+        let fileProviders = providers.filter {
+            $0.hasItemConformingToTypeIdentifier(
+                UTType.fileURL.identifier
+            )
+        }
+
+        guard !fileProviders.isEmpty else {
+            return false
+        }
+
+        for provider in fileProviders {
             provider.loadItem(
                 forTypeIdentifier: UTType.fileURL.identifier,
                 options: nil
@@ -200,14 +210,45 @@ struct ContentView: View {
                     return
                 }
 
-                guard let data = item as? Data,
-                    let url = URL(dataRepresentation: data, relativeTo: nil)
-                else {
+                let url: URL?
+
+                switch item {
+                case let value as URL:
+                    url = value
+
+                case let value as NSURL:
+                    url = value as URL
+
+                case let value as Data:
+                    url = URL(
+                        dataRepresentation: value,
+                        relativeTo: nil
+                    )
+
+                case let value as String:
+                    url = URL(string: value)
+
+                default:
+                    url = nil
+                }
+
+                guard let url else {
+                    print(
+                        "Unsupported dropped file representation:",
+                        String(describing: type(of: item))
+                    )
                     return
                 }
 
+                let normalizedURL = url.standardizedFileURL
+
                 DispatchQueue.main.async {
-                    store.add(url: url)
+                    store.add(url: normalizedURL)
+
+                    print(
+                        "Added file to shelf:",
+                        normalizedURL.path
+                    )
                 }
             }
         }
