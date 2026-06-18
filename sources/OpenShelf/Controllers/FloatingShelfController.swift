@@ -1,6 +1,7 @@
 import AppKit
 import SwiftUI
 
+@MainActor
 final class FloatingShelfController {
     private let store = ShelfStore()
 
@@ -45,7 +46,9 @@ final class FloatingShelfController {
         hideWorkItem?.cancel()
 
         let workItem = DispatchWorkItem { [weak self] in
-            self?.collapseNow()
+            Task { @MainActor in
+                self?.collapseNow()
+            }
         }
 
         hideWorkItem = workItem
@@ -207,21 +210,19 @@ final class FloatingShelfController {
             panel: panel,
             to: collapsedFrame
         ) { [weak self, weak panel] in
-            guard let self, let panel else { return }
+            Task { @MainActor in
+                guard let self, let panel else { return }
 
-            /*
-             Recheck the store after animation in case an item was added
-             while the shelf was collapsing.
-            */
-            if shouldCloseAfterCollapse && self.store.items.isEmpty {
-                panel.orderOut(nil)
-                self.isCollapsed = false
+                if shouldCloseAfterCollapse && self.store.items.isEmpty {
+                    panel.orderOut(nil)
+                    self.isCollapsed = false
 
-                print("Empty shelf collapsed and closed.")
-            } else {
-                panel.level = .floating
+                    print("Empty shelf collapsed and closed.")
+                } else {
+                    panel.level = .floating
 
-                print("Shelf collapsed to edge.")
+                    print("Shelf collapsed to edge.")
+                }
             }
         }
     }

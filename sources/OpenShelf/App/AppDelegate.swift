@@ -1,5 +1,6 @@
 import AppKit
 
+@MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let shelfController = FloatingShelfController()
     private var edgeTriggerController: EdgeTriggerController?

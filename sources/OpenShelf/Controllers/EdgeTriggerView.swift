@@ -1,5 +1,6 @@
 import AppKit
 
+@MainActor
 final class EdgeTriggerView: NSView {
     private weak var shelfController: FloatingShelfController?
     private let screen: NSScreen

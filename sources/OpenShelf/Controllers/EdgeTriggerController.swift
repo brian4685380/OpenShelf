@@ -1,5 +1,6 @@
 import AppKit
 
+@MainActor
 final class EdgeTriggerController {
     private weak var shelfController: FloatingShelfController?
     private var triggerPanels: [NSPanel] = []
