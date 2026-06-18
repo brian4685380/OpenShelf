@@ -1,7 +1,8 @@
 import SwiftUI
 
-struct ShelfRow: View {
+struct ShelfRow<DragHandle: View>: View {
     let item: ShelfItem
+    let dragHandle: DragHandle
 
     let onOpen: () -> Void
     let onQuickLook: () -> Void
@@ -11,9 +12,28 @@ struct ShelfRow: View {
 
     @State private var isHovering = false
 
+    init(
+        item: ShelfItem,
+        @ViewBuilder dragHandle: () -> DragHandle,
+        onOpen: @escaping () -> Void,
+        onQuickLook: @escaping () -> Void,
+        onRevealInFinder: @escaping () -> Void,
+        onCopyPath: @escaping () -> Void,
+        onRemove: @escaping () -> Void
+    ) {
+        self.item = item
+        self.dragHandle = dragHandle()
+        self.onOpen = onOpen
+        self.onQuickLook = onQuickLook
+        self.onRevealInFinder = onRevealInFinder
+        self.onCopyPath = onCopyPath
+        self.onRemove = onRemove
+    }
+
     var body: some View {
         HStack(spacing: 10) {
-            FileIcon(url: item.url)
+            dragHandle
+                .frame(width: 34, height: 34)
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(item.url.lastPathComponent)
@@ -39,7 +59,11 @@ struct ShelfRow: View {
                     .frame(width: 18, height: 18)
                     .background {
                         Circle()
-                            .fill(Color.secondary.opacity(isHovering ? 0.14 : 0.0))
+                            .fill(
+                                Color.secondary.opacity(
+                                    isHovering ? 0.14 : 0
+                                )
+                            )
                     }
             }
             .buttonStyle(.plain)
@@ -50,8 +74,15 @@ struct ShelfRow: View {
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
         .background {
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(isHovering ? Color.secondary.opacity(0.10) : Color.clear)
+            RoundedRectangle(
+                cornerRadius: 10,
+                style: .continuous
+            )
+            .fill(
+                isHovering
+                    ? Color.secondary.opacity(0.10)
+                    : Color.clear
+            )
         }
         .contentShape(Rectangle())
         .onHover { hovering in
@@ -64,25 +95,37 @@ struct ShelfRow: View {
             Button {
                 onOpen()
             } label: {
-                Label("Open", systemImage: "arrow.up.right.square")
+                Label(
+                    "Open",
+                    systemImage: "arrow.up.right.square"
+                )
             }
 
             Button {
                 onQuickLook()
             } label: {
-                Label("Quick Look", systemImage: "eye")
+                Label(
+                    "Quick Look",
+                    systemImage: "eye"
+                )
             }
 
             Button {
                 onRevealInFinder()
             } label: {
-                Label("Reveal in Finder", systemImage: "folder")
+                Label(
+                    "Reveal in Finder",
+                    systemImage: "folder"
+                )
             }
 
             Button {
                 onCopyPath()
             } label: {
-                Label("Copy Path", systemImage: "doc.on.doc")
+                Label(
+                    "Copy Path",
+                    systemImage: "doc.on.doc"
+                )
             }
 
             Divider()
@@ -90,7 +133,10 @@ struct ShelfRow: View {
             Button {
                 onRemove()
             } label: {
-                Label("Remove from Shelf", systemImage: "trash")
+                Label(
+                    "Remove from Shelf",
+                    systemImage: "trash"
+                )
             }
         }
     }

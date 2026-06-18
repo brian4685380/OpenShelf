@@ -145,6 +145,18 @@ struct ContentView: View {
                 ForEach(store.items) { item in
                     ShelfRow(
                         item: item,
+                        dragHandle: {
+                            ZStack {
+                                FileIcon(url: item.url)
+
+                                FileDragSource(
+                                    item: item,
+                                    onSuccessfulDrag: {
+                                        store.remove(item)
+                                    }
+                                )
+                            }
+                        },
                         onOpen: {
                             store.open(item)
                         },
@@ -161,8 +173,18 @@ struct ContentView: View {
                             store.remove(item)
                         }
                     )
-                    .onDrag {
-                        makeItemProvider(for: item.url)
+                    .overlay {
+                        FileDragSource(
+                            item: item,
+                            onSuccessfulDrag: {
+                                store.remove(item)
+
+                                print(
+                                    "Removed after successful drag-out:",
+                                    item.url.path
+                                )
+                            }
+                        )
                     }
                 }
             }
