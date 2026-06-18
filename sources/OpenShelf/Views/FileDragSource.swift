@@ -4,6 +4,7 @@ import SwiftUI
 struct FileDragSource: NSViewRepresentable {
     let item: ShelfItem
     let onDragCompleted: (NSDragOperation) -> Void
+    let onDoubleClick: () -> Void
 
     func makeNSView(context: Context) -> FileDragSourceView {
         let view = FileDragSourceView()
@@ -24,11 +25,17 @@ struct FileDragSource: NSViewRepresentable {
 final class FileDragSourceView: NSView, NSDraggingSource {
     var item: ShelfItem?
     var onDragCompleted: ((NSDragOperation) -> Void)?
+    var onDoubleClick: (() -> Void)?
 
     private var mouseDownEvent: NSEvent?
     private var hasStartedDragging = false
 
     override func mouseDown(with event: NSEvent) {
+        if event.clickCount == 2 {
+            onDoubleClick?()
+            return
+        }
+
         mouseDownEvent = event
         hasStartedDragging = false
     }

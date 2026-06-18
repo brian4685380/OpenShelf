@@ -1,8 +1,8 @@
 import SwiftUI
 
-struct ShelfRow<DragHandle: View>: View {
+struct ShelfRow: View {
     let item: ShelfItem
-    let dragHandle: DragHandle
+    let onDragCompleted: (NSDragOperation) -> Void
 
     let onOpen: () -> Void
     let onQuickLook: () -> Void
@@ -12,44 +12,9 @@ struct ShelfRow<DragHandle: View>: View {
 
     @State private var isHovering = false
 
-    init(
-        item: ShelfItem,
-        @ViewBuilder dragHandle: () -> DragHandle,
-        onOpen: @escaping () -> Void,
-        onQuickLook: @escaping () -> Void,
-        onRevealInFinder: @escaping () -> Void,
-        onCopyPath: @escaping () -> Void,
-        onRemove: @escaping () -> Void
-    ) {
-        self.item = item
-        self.dragHandle = dragHandle()
-        self.onOpen = onOpen
-        self.onQuickLook = onQuickLook
-        self.onRevealInFinder = onRevealInFinder
-        self.onCopyPath = onCopyPath
-        self.onRemove = onRemove
-    }
-
     var body: some View {
-        HStack(spacing: 10) {
-            dragHandle
-                .frame(width: 34, height: 34)
-
-            VStack(alignment: .leading, spacing: 3) {
-                Text(item.url.lastPathComponent)
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-
-                Text(item.url.deletingLastPathComponent().path)
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-            }
-
-            Spacer(minLength: 8)
+        HStack(spacing: 8) {
+            draggableContent
 
             Button {
                 onRemove()
@@ -71,8 +36,8 @@ struct ShelfRow<DragHandle: View>: View {
             .opacity(isHovering ? 1 : 0)
             .help("Remove from shelf")
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
         .background {
             RoundedRectangle(
                 cornerRadius: 10,
@@ -87,9 +52,6 @@ struct ShelfRow<DragHandle: View>: View {
         .contentShape(Rectangle())
         .onHover { hovering in
             isHovering = hovering
-        }
-        .onTapGesture(count: 2) {
-            onOpen()
         }
         .contextMenu {
             Button {
@@ -139,5 +101,40 @@ struct ShelfRow<DragHandle: View>: View {
                 )
             }
         }
+    }
+
+    private var draggableContent: some View {
+        ZStack {
+            HStack(spacing: 10) {
+                FileIcon(url: item.url)
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(item.url.lastPathComponent)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+
+                    Text(
+                        item.url
+                            .deletingLastPathComponent()
+                            .path
+                    )
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                }
+
+                Spacer(minLength: 8)
+            }
+
+            FileDragSource(
+                item: item,
+                onDragCompleted: onDragCompleted,
+                onDoubleClick: onOpen
+            )
+        }
+        .contentShape(Rectangle())
     }
 }

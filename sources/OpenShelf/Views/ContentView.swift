@@ -139,37 +139,14 @@ struct ContentView: View {
                 ForEach(store.items) { item in
                     ShelfRow(
                         item: item,
-                        dragHandle: {
-                            ZStack {
-                                FileIcon(url: item.url)
-                                FileDragSource(
-                                    item: item,
-                                    onDragCompleted: { operation in
-                                        if operation.contains(.move) {
-                                            print(
-                                                "File moved by destination:",
-                                                item.url.path
-                                            )
-
-                                            store.remove(item)
-                                        } else if operation.contains(.copy) {
-                                            print(
-                                                "File copied by destination:",
-                                                item.url.path
-                                            )
-
-                                            store.remove(item)
-                                        } else {
-                                            print(
-                                                "Drag completed with operation:",
-                                                operation.rawValue
-                                            )
-
-                                            store.remove(item)
-                                        }
-                                    }
-                                )
+                        onDragCompleted: { operation in
+                            if operation.contains(.move) {
+                                print("Moved:", item.url.path)
+                            } else if operation.contains(.copy) {
+                                print("Copied:", item.url.path)
                             }
+
+                            store.remove(item)
                         },
                         onOpen: {
                             store.open(item)
