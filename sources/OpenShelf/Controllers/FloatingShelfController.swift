@@ -12,6 +12,8 @@ final class FloatingShelfController {
     private var currentEdge: ShelfEdge = .right
     private var currentTriggerY: CGFloat?
     private var isCollapsed = false
+    private var isShelfPresented = false
+    private var presentationGeneration: UInt = 0
 
     private let panelSize = NSSize(width: 300, height: 200)
     private let visibleTabWidth: CGFloat = 32
@@ -24,6 +26,9 @@ final class FloatingShelfController {
         triggerY: CGFloat? = nil
     ) {
         cancelHide()
+        presentationGeneration &+= 1
+        isShelfPresented = true
+
         if panel == nil {
             panel = makePanel()
         }
@@ -42,7 +47,10 @@ final class FloatingShelfController {
         panel.setFrame(expandedFrame, display: true)
         panel.orderFrontRegardless()
     }
+
     func collapse(after delay: TimeInterval = 0.0) {
+        guard isShelfPresented else { return }
+
         hideWorkItem?.cancel()
 
         let workItem = DispatchWorkItem { [weak self] in
@@ -65,7 +73,7 @@ final class FloatingShelfController {
 
     func expand() {
         cancelHide()
-        guard let panel else { return }
+        guard isShelfPresented, let panel else { return }
         isCollapsed = false
         let expanded = frameForExpandedState(on: currentScreen, edge: currentEdge)
         panel.level = .statusBar  // raise level on expand as well
@@ -79,7 +87,7 @@ final class FloatingShelfController {
             return
         }
 
-        if panel.isVisible {
+        if isShelfPresented && panel.isVisible {
             if isCollapsed {
                 expand()
             } else {
@@ -104,6 +112,8 @@ final class FloatingShelfController {
 
         guard let panel else { return }
 
+        presentationGeneration &+= 1
+        isShelfPresented = false
         panel.orderOut(nil)
         isCollapsed = false
 
@@ -148,6 +158,9 @@ final class FloatingShelfController {
             },
             onClose: { [weak self] in
                 self?.closeShelf()
+            },
+            onDragOutCompleted: { [weak self] in
+                self?.handleDragOutCompleted()
             },
             onDropTargetChanged: { [weak self] isTargeted in
                 self?.handleDropTargetChanged(isTargeted)
@@ -197,7 +210,7 @@ final class FloatingShelfController {
     }
 
     private func handleHoverChanged(_ isHovering: Bool) {
-        guard let panel else { return }
+        guard isShelfPresented, let panel else { return }
 
         if isHovering {
             cancelHide()
@@ -221,7 +234,7 @@ final class FloatingShelfController {
     }
 
     private func handleDropTargetChanged(_ isTargeted: Bool) {
-        guard let panel else { return }
+        guard isShelfPresented, let panel else { return }
 
         if isTargeted {
             // A file drag entered the collapsed tab.
@@ -239,6 +252,12 @@ final class FloatingShelfController {
         } else {
             print("Drag left shelf drop region.")
         }
+    }
+
+    private func handleDragOutCompleted() {
+        // Hover updates are not reliable while AppKit owns a drag session.
+        // Collapse explicitly after a successful drop outside the shelf.
+        collapse()
     }
 
     private func expandImmediately() {
@@ -270,7 +289,9 @@ final class FloatingShelfController {
     }
 
     private func collapseNow() {
-        guard let panel else { return }
+        hideWorkItem = nil
+
+        guard isShelfPresented, let panel, panel.isVisible else { return }
 
         let targetScreen = screenContaining(panel) ?? currentScreen ?? NSScreen.main
 
@@ -308,7 +329,7 @@ final class FloatingShelfController {
             originY: preservedY
         )
 
-        let shouldCloseAfterCollapse = store.items.isEmpty
+        let collapseGeneration = presentationGeneration
 
         animate(
             panel: panel,
@@ -316,21 +337,20 @@ final class FloatingShelfController {
         ) { [weak self, weak panel] in
             Task { @MainActor in
                 guard let self, let panel else { return }
-
-                if shouldCloseAfterCollapse && self.store.items.isEmpty {
-                    panel.orderOut(nil)
-                    self.isCollapsed = false
-
-                    print("Empty shelf collapsed and closed.")
-                } else {
-                    panel.level = .statusBar
-                    panel.orderFrontRegardless()
-
-                    print(
-                        "Shelf collapsed to",
-                        collapseEdge == .left ? "left edge." : "right edge."
-                    )
+                guard
+                    self.isShelfPresented,
+                    self.presentationGeneration == collapseGeneration
+                else {
+                    return
                 }
+
+                panel.level = .statusBar
+                panel.orderFrontRegardless()
+
+                print(
+                    "Shelf collapsed to",
+                    collapseEdge == .left ? "left edge." : "right edge."
+                )
             }
         }
     }

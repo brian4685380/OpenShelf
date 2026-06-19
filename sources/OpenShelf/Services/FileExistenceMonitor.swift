@@ -2,7 +2,7 @@ import Darwin
 import Foundation
 
 final class FileExistenceMonitor {
-    private var fileDescriptor: Int32 = -1
+    private let stateLock = NSLock()
     private var source: DispatchSourceFileSystemObject?
     private var isStopped = false
 
@@ -16,8 +16,6 @@ final class FileExistenceMonitor {
             return nil
         }
 
-        fileDescriptor = descriptor
-
         let source = DispatchSource.makeFileSystemObjectSource(
             fileDescriptor: descriptor,
             eventMask: [
@@ -29,9 +27,12 @@ final class FileExistenceMonitor {
         )
 
         source.setEventHandler { [weak self] in
-            guard let self else { return }
-
-            let event = source.data
+            guard
+                let self,
+                let event = self.pendingEvents()
+            else {
+                return
+            }
 
             guard
                 event.contains(.delete)
@@ -57,12 +58,30 @@ final class FileExistenceMonitor {
     }
 
     func stop() {
-        guard !isStopped else { return }
+        let sourceToCancel: DispatchSourceFileSystemObject?
+
+        stateLock.lock()
+
+        if isStopped {
+            stateLock.unlock()
+            return
+        }
 
         isStopped = true
-        source?.cancel()
+        sourceToCancel = source
         source = nil
-        fileDescriptor = -1
+
+        stateLock.unlock()
+
+        sourceToCancel?.cancel()
+    }
+
+    private func pendingEvents() -> DispatchSource.FileSystemEvent? {
+        stateLock.lock()
+        defer { stateLock.unlock() }
+
+        guard !isStopped else { return nil }
+        return source?.data
     }
 
     deinit {

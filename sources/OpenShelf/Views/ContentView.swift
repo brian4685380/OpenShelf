@@ -6,6 +6,7 @@ struct ContentView: View {
     @ObservedObject var store: ShelfStore
     let onHoverChanged: (Bool) -> Void
     let onClose: () -> Void
+    let onDragOutCompleted: () -> Void
     let onDropTargetChanged: (Bool) -> Void
 
     @State private var isDropTargeted = false
@@ -157,6 +158,7 @@ struct ContentView: View {
                             }
 
                             store.remove(item)
+                            onDragOutCompleted()
                         },
                         onOpen: {
                             store.open(item)
@@ -187,10 +189,6 @@ struct ContentView: View {
                 }
             }
         }
-    }
-
-    private var backgroundView: some View {
-        Color.black.opacity(0.5)
     }
 
     private func handleDrop(_ providers: [NSItemProvider]) -> Bool {
@@ -260,9 +258,4 @@ struct ContentView: View {
         return true
     }
 
-    private func makeItemProvider(for url: URL) -> NSItemProvider {
-        let provider = NSItemProvider(object: url as NSURL)
-        provider.suggestedName = url.lastPathComponent
-        return provider
-    }
 }

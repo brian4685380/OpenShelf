@@ -140,7 +140,7 @@ final class FileDragSourceView: NSView, NSDraggingSource {
         if let window,
             window.frame.contains(screenPoint)
         {
-            print("File returned to OpenShelf; keeping shlef item.")
+            print("File returned to OpenShelf; keeping shelf item.")
             return
         }
 

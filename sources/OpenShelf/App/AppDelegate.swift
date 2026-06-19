@@ -29,6 +29,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         edgeTriggerController?.stop()
     }
 
+    func applicationDidChangeScreenParameters(_ notification: Notification) {
+        edgeTriggerController?.start()
+    }
+
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         false
     }

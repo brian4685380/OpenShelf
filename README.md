@@ -111,8 +111,8 @@ swift build -c release
 To create the `.app`, `.zip`, and `.dmg` release artifacts:
 
 ```bash
-chmod +x scripts/package.sh
-./scripts/package.sh 0.2.0
+chmod +x scripts/package_app.sh
+./scripts/package_app.sh 0.2.0
 ```
 
 Generated files will be placed in:
