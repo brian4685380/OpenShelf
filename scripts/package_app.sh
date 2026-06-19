@@ -30,9 +30,14 @@ RESOURCES_DIR="${CONTENTS_DIR}/Resources"
 
 ZIP_PATH="${DIST_DIR}/${APP_NAME}-v${VERSION}-macOS.zip"
 DMG_PATH="${DIST_DIR}/${APP_NAME}-v${VERSION}-macOS.dmg"
-DMG_STAGING_DIR="${DIST_DIR}/dmg"
+DMG_BACKGROUND_PATH="${BUILD_DIR}/DMGBackground.png"
+DMGBUILD_VENV="${BUILD_DIR}/dmgbuild-venv"
+DMGBUILD="${DMGBUILD_VENV}/bin/dmgbuild"
 
 ICON_SOURCE="${PROJECT_ROOT}/Assets/AppIcon.icns"
+MENU_BAR_ICON_SOURCE="${PROJECT_ROOT}/Assets/AppIcon.png"
+DMG_BACKGROUND_GENERATOR="${PROJECT_ROOT}/scripts/create_dmg_background.swift"
+DMG_SETTINGS="${PROJECT_ROOT}/scripts/dmg_settings.py"
 
 echo "Packaging ${APP_NAME} v${VERSION}"
 echo "Project: ${PROJECT_ROOT}"
@@ -77,6 +82,7 @@ ICON_PLIST_ENTRY=""
 if [[ -f "${ICON_SOURCE}" ]]; then
     echo "Copying app icon..."
     cp "${ICON_SOURCE}" "${RESOURCES_DIR}/AppIcon.icns"
+    cp "${MENU_BAR_ICON_SOURCE}" "${RESOURCES_DIR}/AppIcon.png"
     ICON_PLIST_ENTRY="<key>CFBundleIconFile</key><string>AppIcon</string>"
 else
     echo "Warning: ${ICON_SOURCE} does not exist."
@@ -174,32 +180,30 @@ ditto \
     "${ZIP_PATH}"
 
 # ------------------------------------------------------------
-# Create DMG staging directory
+# Create DMG with deterministic Finder metadata
 # ------------------------------------------------------------
 
 echo
 echo "Creating DMG..."
 
-mkdir -p "${DMG_STAGING_DIR}"
+swift \
+    "${DMG_BACKGROUND_GENERATOR}" \
+    "${DMG_BACKGROUND_PATH}"
 
-cp -R "${APP_BUNDLE}" "${DMG_STAGING_DIR}/${APP_NAME}.app"
+if [[ ! -x "${DMGBUILD}" ]]; then
+    echo "Installing pinned DMG packaging dependency..."
+    python3 -m venv "${DMGBUILD_VENV}"
+    "${DMGBUILD_VENV}/bin/python" -m pip install \
+        --disable-pip-version-check \
+        "dmgbuild==1.6.7"
+fi
 
-ln -s \
-    "/Applications" \
-    "${DMG_STAGING_DIR}/Applications"
-
-# ------------------------------------------------------------
-# Build compressed DMG
-# ------------------------------------------------------------
-
-hdiutil create \
-    -volname "${APP_NAME}" \
-    -srcfolder "${DMG_STAGING_DIR}" \
-    -ov \
-    -format UDZO \
+"${DMGBUILD}" \
+    -s "${DMG_SETTINGS}" \
+    -D "app=${APP_BUNDLE}" \
+    -D "background=${DMG_BACKGROUND_PATH}" \
+    "${APP_NAME}" \
     "${DMG_PATH}"
-
-rm -rf "${DMG_STAGING_DIR}"
 
 # ------------------------------------------------------------
 # Final verification

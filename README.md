@@ -115,6 +115,10 @@ chmod +x scripts/package_app.sh
 ./scripts/package_app.sh 0.2.0
 ```
 
+The first packaging run creates a local virtual environment under `.build/`
+and installs the pinned `dmgbuild` dependency used to generate Finder layout
+metadata reliably.
+
 Generated files will be placed in:
 
 ```text
