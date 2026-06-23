@@ -102,6 +102,18 @@ final class FloatingShelfController {
         store.clear()
     }
 
+    func addAndShow(urls: [URL]) {
+        guard !urls.isEmpty else {
+            return
+        }
+
+        for url in urls {
+            store.add(url: url)
+        }
+
+        show()
+    }
+
     func cancelHide() {
         hideWorkItem?.cancel()
         hideWorkItem = nil

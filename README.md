@@ -21,8 +21,11 @@ OpenShelf is designed to stay minimal: it runs quietly from the menu bar, uses n
 - Reveal the shelf by dragging files to either screen edge
 - Position the shelf near the location where the drag was triggered
 - Temporarily store references to files and folders
-- Drag files from the shelf into Finder or other applications
+- Select one or more shelf items
+- Drag multiple selected files from the shelf into Finder or other applications
 - Drag files back into the shelf
+- Manually reorder shelf rows by dragging them up or down
+- Auto-scroll while drag-selecting or reordering long shelves
 - Open files with a double-click
 - Reveal files in Finder
 - Copy file paths
@@ -48,6 +51,27 @@ The shelf stores references to the original files rather than creating its own c
 
 ## Installation
 
+### Homebrew
+
+Homebrew is the recommended way to install OpenShelf if you want the `shelf`
+CLI to be available automatically.
+
+After the Homebrew tap is published:
+
+```bash
+brew tap brian4685380/openshelf
+brew install --cask openshelf
+```
+
+Homebrew installs `OpenShelf.app` and links the bundled `shelf` command into
+Homebrew's bin directory.
+
+```bash
+shelf ~/Desktop/example.pdf ~/Downloads/example-folder
+```
+
+### DMG
+
 1. Download the latest `.dmg` file from the [Releases](../../releases) page.
 2. Open the downloaded DMG.
 3. Drag `OpenShelf.app` into the `Applications` folder.
@@ -56,6 +80,27 @@ The shelf stores references to the original files rather than creating its own c
 OpenShelf runs as a menu bar application and does not appear in the Dock.
 
 > OpenShelf is currently distributed without Apple notarization. On the first launch, macOS may require you to Control-click the app, select **Open**, and confirm.
+
+### Optional CLI
+
+OpenShelf also includes a command-line tool named `shelf`.
+
+If you install with Homebrew, the CLI is linked automatically. If you install
+from the DMG, you can expose the CLI from the OpenShelf menu bar item:
+
+1. Click the OpenShelf menu bar icon.
+2. Select **Install CLI Tool…**.
+3. Enter your macOS administrator password when prompted.
+
+This creates the following symlink:
+
+```bash
+sudo ln -sf /Applications/OpenShelf.app/Contents/MacOS/shelf /usr/local/bin/shelf
+```
+
+If OpenShelf is already running, the files are added to the current shelf. If it
+is not running, the CLI attempts to launch OpenShelf first and then adds the
+files.
 
 ## Requirements
 
@@ -69,13 +114,22 @@ OpenShelf runs as a menu bar application and does not appear in the Dock.
 3. Drop it onto the shelf.
 4. Drag it from the shelf into Finder or another application when needed.
 
+Shelf interactions:
+
+- Click a row to select it.
+- Command-click rows to add or remove individual items from the selection.
+- Drag across the empty shelf area to select multiple rows, similar to Finder.
+- Drag selected rows out of the shelf to move multiple files at once.
+- Drag rows up or down inside the shelf to manually reorder them.
+- Run `shelf <file-or-folder> [...]` from Terminal to add files directly.
+
 Additional actions are available from each item's context menu.
 
 ## Current Status
 
 OpenShelf is under active development.
 
-The current release supports the core single-file shelf workflow. Multi-selection and dragging multiple shelf items at once are planned for a future release.
+The current v0.3.0 release supports the core shelf workflow, multi-selection, dragging multiple selected items, manual row reordering, adaptive light/dark appearance, and improved DMG installation guidance.
 
 Bug reports, feature suggestions, and contributions are welcome.
 
@@ -112,7 +166,7 @@ To create the `.app`, `.zip`, and `.dmg` release artifacts:
 
 ```bash
 chmod +x scripts/package_app.sh
-./scripts/package_app.sh 0.2.0
+./scripts/package_app.sh 0.3.0
 ```
 
 The first packaging run creates a local virtual environment under `.build/`
@@ -124,9 +178,14 @@ Generated files will be placed in:
 ```text
 dist/
 ├── OpenShelf.app
-├── OpenShelf-v0.2.0-macOS.zip
-└── OpenShelf-v0.2.0-macOS.dmg
+├── shelf
+├── OpenShelf-v0.3.0-macOS.zip
+├── OpenShelf-v0.3.0-macOS.dmg
+└── openshelf.rb
 ```
+
+The generated `dist/openshelf.rb` file contains the release ZIP checksum and can
+be copied into a Homebrew tap repository under `Casks/openshelf.rb`.
 
 ## Built With
 
@@ -148,8 +207,6 @@ It does not:
 
 ## Roadmap
 
-- Multi-selection
-- Dragging multiple files at once
 - Improved release signing and notarization
 - Additional shelf customization
 - Keyboard shortcuts

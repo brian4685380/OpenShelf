@@ -8,13 +8,21 @@ let package = Package(
         .macOS(.v13)
     ],
     products: [
-        .executable(name: "OpenShelf", targets: ["OpenShelf"])
+        .executable(name: "OpenShelf", targets: ["OpenShelf"]),
+        .executable(name: "shelf", targets: ["ShelfCLI"]),
     ],
     targets: [
         .executableTarget(
             name: "OpenShelf",
             linkerSettings: [
                 .linkedFramework("SwiftUI"),
+                .linkedFramework("AppKit"),
+            ]
+        ),
+        .executableTarget(
+            name: "ShelfCLI",
+            path: "sources/ShelfCLI",
+            linkerSettings: [
                 .linkedFramework("AppKit"),
             ]
         )

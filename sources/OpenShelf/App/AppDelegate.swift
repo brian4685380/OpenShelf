@@ -4,6 +4,7 @@ import AppKit
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let shelfController = FloatingShelfController()
     private var edgeTriggerController: EdgeTriggerController?
+    private var commandReceiver: ShelfCommandReceiver?
 
     private var statusItem: NSStatusItem?
 
@@ -13,6 +14,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.setActivationPolicy(.accessory)
 
         setupMenuBarItem()
+        commandReceiver = ShelfCommandReceiver(
+            shelfController: shelfController
+        )
 
         let triggerController = EdgeTriggerController(
             shelfController: shelfController
@@ -73,6 +77,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         menu.addItem(
             NSMenuItem(
+                title: "Install CLI Tool…",
+                action: #selector(installCLITool),
+                keyEquivalent: ""
+            )
+        )
+
+        menu.addItem(NSMenuItem.separator())
+
+        menu.addItem(
+            NSMenuItem(
                 title: "Quit OpenShelf",
                 action: #selector(quit),
                 keyEquivalent: "q"
@@ -115,7 +129,94 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         shelfController.clearShelf()
     }
 
+    @objc private func installCLITool() {
+        guard let cliURL = bundledCLIURL() else {
+            showAlert(
+                title: "CLI Tool Not Found",
+                message: "OpenShelf could not find the bundled shelf command."
+            )
+            return
+        }
+
+        let destinationPath = "/usr/local/bin/shelf"
+        let command = [
+            "/bin/mkdir -p /usr/local/bin",
+            "/bin/ln -sf \(shellQuoted(cliURL.path)) \(shellQuoted(destinationPath))",
+        ].joined(separator: " && ")
+
+        let script = """
+        do shell script \(appleScriptQuoted(command)) with administrator privileges
+        """
+
+        var errorInfo: NSDictionary?
+        NSAppleScript(source: script)?
+            .executeAndReturnError(&errorInfo)
+
+        if let errorInfo {
+            let message = errorInfo[NSAppleScript.errorMessage] as? String
+                ?? "The CLI tool could not be installed."
+
+            showAlert(
+                title: "CLI Install Failed",
+                message: message
+            )
+            return
+        }
+
+        showAlert(
+            title: "CLI Tool Installed",
+            message: "You can now run shelf <file-or-folder> from Terminal."
+        )
+    }
+
     @objc private func quit() {
         NSApp.terminate(nil)
+    }
+
+    private func bundledCLIURL() -> URL? {
+        let bundledURL = Bundle.main.bundleURL
+            .appendingPathComponent("Contents")
+            .appendingPathComponent("MacOS")
+            .appendingPathComponent("shelf")
+
+        if FileManager.default.isExecutableFile(atPath: bundledURL.path) {
+            return bundledURL
+        }
+
+        // Development fallback for `swift run`.
+        let sourceRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+
+        let debugURL = sourceRoot
+            .appendingPathComponent(".build")
+            .appendingPathComponent("debug")
+            .appendingPathComponent("shelf")
+
+        if FileManager.default.isExecutableFile(atPath: debugURL.path) {
+            return debugURL
+        }
+
+        return nil
+    }
+
+    private func showAlert(title: String, message: String) {
+        let alert = NSAlert()
+        alert.messageText = title
+        alert.informativeText = message
+        alert.alertStyle = .informational
+        alert.addButton(withTitle: "OK")
+        alert.runModal()
+    }
+
+    private func shellQuoted(_ value: String) -> String {
+        "'\(value.replacingOccurrences(of: "'", with: "'\\''"))'"
+    }
+
+    private func appleScriptQuoted(_ value: String) -> String {
+        "\"\(value.replacingOccurrences(of: "\"", with: "\\\""))\""
     }
 }

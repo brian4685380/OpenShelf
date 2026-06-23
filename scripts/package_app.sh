@@ -7,8 +7,10 @@ set -euo pipefail
 #
 # Outputs:
 #   dist/OpenShelf.app
+#   dist/shelf
 #   dist/OpenShelf-v<VERSION>-macOS.zip
 #   dist/OpenShelf-v<VERSION>-macOS.dmg
+#   dist/openshelf.rb
 #
 # Usage:
 #   ./scripts/package_app.sh
@@ -16,6 +18,7 @@ set -euo pipefail
 # ============================================================
 
 APP_NAME="OpenShelf"
+CLI_NAME="shelf"
 VERSION="${1:-0.3.0}"
 BUNDLE_IDENTIFIER="com.brianyuan.OpenShelf"
 
@@ -34,6 +37,8 @@ RESOURCES_DIR="${CONTENTS_DIR}/Resources"
 
 ZIP_PATH="${DIST_DIR}/${APP_NAME}-v${VERSION}-macOS.zip"
 DMG_PATH="${DIST_DIR}/${APP_NAME}-v${VERSION}-macOS.dmg"
+CLI_PATH="${DIST_DIR}/${CLI_NAME}"
+CASK_PATH="${DIST_DIR}/openshelf.rb"
 DMG_BACKGROUND_PATH="${BUILD_DIR}/DMGBackground.png"
 DMGBUILD_VENV="${BUILD_DIR}/dmgbuild-venv"
 DMGBUILD="${DMGBUILD_VENV}/bin/dmgbuild"
@@ -67,6 +72,9 @@ swift build -c release --disable-sandbox
 EXECUTABLE_PATH="$(
     swift build -c release --disable-sandbox --show-bin-path
 )/${APP_NAME}"
+CLI_EXECUTABLE_PATH="$(
+    swift build -c release --disable-sandbox --show-bin-path
+)/${CLI_NAME}"
 
 if [[ ! -f "${EXECUTABLE_PATH}" ]]; then
     echo "Error: executable was not found:"
@@ -74,8 +82,20 @@ if [[ ! -f "${EXECUTABLE_PATH}" ]]; then
     exit 1
 fi
 
+if [[ ! -f "${CLI_EXECUTABLE_PATH}" ]]; then
+    echo "Error: CLI executable was not found:"
+    echo "  ${CLI_EXECUTABLE_PATH}"
+    exit 1
+fi
+
 cp "${EXECUTABLE_PATH}" "${MACOS_DIR}/${APP_NAME}"
 chmod +x "${MACOS_DIR}/${APP_NAME}"
+
+cp "${CLI_EXECUTABLE_PATH}" "${MACOS_DIR}/${CLI_NAME}"
+chmod +x "${MACOS_DIR}/${CLI_NAME}"
+
+cp "${CLI_EXECUTABLE_PATH}" "${CLI_PATH}"
+chmod +x "${CLI_PATH}"
 
 # ------------------------------------------------------------
 # Copy icon when available
@@ -183,6 +203,33 @@ ditto \
     "${APP_BUNDLE}" \
     "${ZIP_PATH}"
 
+ZIP_SHA256="$(
+    shasum -a 256 "${ZIP_PATH}" | awk '{print $1}'
+)"
+
+cat > "${CASK_PATH}" <<EOF
+cask "openshelf" do
+  version "${VERSION}"
+  sha256 "${ZIP_SHA256}"
+
+  url "https://github.com/brian4685380/OpenShelf/releases/download/v#{version}/OpenShelf-v#{version}-macOS.zip"
+  name "OpenShelf"
+  desc "Lightweight file shelf for macOS"
+  homepage "https://github.com/brian4685380/OpenShelf"
+
+  depends_on macos: :ventura
+
+  app "OpenShelf.app"
+  binary "#{appdir}/OpenShelf.app/Contents/MacOS/shelf", target: "shelf"
+
+  uninstall quit: "com.brianyuan.OpenShelf"
+
+  zap trash: [
+    "~/Library/Preferences/com.brianyuan.OpenShelf.plist",
+  ]
+end
+EOF
+
 # ------------------------------------------------------------
 # Create DMG with deterministic Finder metadata
 # ------------------------------------------------------------
@@ -226,8 +273,13 @@ codesign \
 echo
 echo "Release artifacts created:"
 echo "  App: ${APP_BUNDLE}"
+echo "  CLI: ${CLI_PATH}"
 echo "  ZIP: ${ZIP_PATH}"
 echo "  DMG: ${DMG_PATH}"
+echo "  Homebrew Cask: ${CASK_PATH}"
 echo
 echo "Recommended GitHub release asset:"
 echo "  $(basename "${DMG_PATH}")"
+echo
+echo "Recommended Homebrew cask source:"
+echo "  ${CASK_PATH}"
