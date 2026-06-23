@@ -12,16 +12,20 @@ set -euo pipefail
 #
 # Usage:
 #   ./scripts/package_app.sh
-#   ./scripts/package_app.sh 0.2.0
+#   ./scripts/package_app.sh 0.3.0
 # ============================================================
 
 APP_NAME="OpenShelf"
-VERSION="${1:-0.2.0}"
+VERSION="${1:-0.3.0}"
 BUNDLE_IDENTIFIER="com.brianyuan.OpenShelf"
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BUILD_DIR="${PROJECT_ROOT}/.build"
 DIST_DIR="${PROJECT_ROOT}/dist"
+
+export CLANG_MODULE_CACHE_PATH="${BUILD_DIR}/ModuleCache"
+export SWIFTPM_MODULECACHE_OVERRIDE="${BUILD_DIR}/ModuleCache"
+export XDG_CACHE_HOME="${BUILD_DIR}/swiftpm-cache"
 
 APP_BUNDLE="${DIST_DIR}/${APP_NAME}.app"
 CONTENTS_DIR="${APP_BUNDLE}/Contents"
@@ -58,10 +62,10 @@ echo
 echo "Building release executable..."
 
 cd "${PROJECT_ROOT}"
-swift build -c release
+swift build -c release --disable-sandbox
 
 EXECUTABLE_PATH="$(
-    swift build -c release --show-bin-path
+    swift build -c release --disable-sandbox --show-bin-path
 )/${APP_NAME}"
 
 if [[ ! -f "${EXECUTABLE_PATH}" ]]; then
