@@ -61,8 +61,17 @@ final class FileDragSourceView: NSView, NSDraggingSource {
     private var hasStartedDragging = false
     private var isReordering = false
     private var activeDragItems: [ShelfItem] = []
+    private var lastDragWindowLocation: NSPoint?
+    private var autoScrollTimer: Timer?
+    private var lastReorderTimestamp: TimeInterval = 0
+    private var lastReorderTargetID: ShelfItem.ID?
     private let reorderPasteboardType =
         NSPasteboard.PasteboardType(shelfReorderPasteboardTypeIdentifier)
+    private let autoScrollEdgeInset: CGFloat = 30
+    private let autoScrollMaxStep: CGFloat = 12
+    private let autoScrollInterval: TimeInterval = 1.0 / 30.0
+    private let reorderCooldown: TimeInterval = 0.12
+    private let reorderTargetInset: CGFloat = 8
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -83,6 +92,10 @@ final class FileDragSourceView: NSView, NSDraggingSource {
         mouseDownClickCount = event.clickCount
         hasStartedDragging = false
         isReordering = false
+        lastDragWindowLocation = nil
+        lastReorderTimestamp = 0
+        lastReorderTargetID = nil
+        stopAutoScrollTimer()
     }
 
     override func mouseDragged(with event: NSEvent) {
@@ -115,6 +128,7 @@ final class FileDragSourceView: NSView, NSDraggingSource {
             isReordering = true
             activeDragItems = dragItems.isEmpty ? [item] : dragItems
             onDragStarted?()
+            startAutoScrollTimer()
             updateDirectReorder(with: event)
             return
         }
@@ -173,6 +187,10 @@ final class FileDragSourceView: NSView, NSDraggingSource {
             mouseDownClickCount = 0
             hasStartedDragging = false
             isReordering = false
+            lastDragWindowLocation = nil
+            lastReorderTimestamp = 0
+            lastReorderTargetID = nil
+            stopAutoScrollTimer()
         }
 
         if wasReordering {
@@ -222,6 +240,10 @@ final class FileDragSourceView: NSView, NSDraggingSource {
         mouseDownClickCount = 0
         hasStartedDragging = false
         isReordering = false
+        lastDragWindowLocation = nil
+        lastReorderTimestamp = 0
+        lastReorderTargetID = nil
+        stopAutoScrollTimer()
 
         let completedItems = activeDragItems
         activeDragItems = []
@@ -289,13 +311,135 @@ final class FileDragSourceView: NSView, NSDraggingSource {
     }
 
     private func updateDirectReorder(with event: NSEvent) {
-        guard let targetItem = item(atWindowLocation: event.locationInWindow),
+        lastDragWindowLocation = event.locationInWindow
+        autoScrollIfNeeded()
+        updateDirectReorder(at: event.locationInWindow)
+    }
+
+    private func updateDirectReorder(at windowLocation: NSPoint) {
+        guard let targetItem = item(atWindowLocation: windowLocation),
             targetItem.id != item?.id
         else {
             return
         }
 
+        guard shouldApplyReorder(to: targetItem) else {
+            return
+        }
+
+        lastReorderTimestamp = CACurrentMediaTime()
+        lastReorderTargetID = targetItem.id
         onReorderDropEntered?(activeDragItems, targetItem)
+    }
+
+    private func shouldApplyReorder(to targetItem: ShelfItem) -> Bool {
+        let now = CACurrentMediaTime()
+
+        if targetItem.id == lastReorderTargetID {
+            return now - lastReorderTimestamp >= reorderCooldown
+        }
+
+        return now - lastReorderTimestamp >= reorderCooldown
+    }
+
+    private func startAutoScrollTimer() {
+        guard autoScrollTimer == nil else {
+            return
+        }
+
+        let timer = Timer(
+            timeInterval: autoScrollInterval,
+            repeats: true
+        ) { [weak self] _ in
+            self?.autoScrollIfNeeded()
+        }
+
+        autoScrollTimer = timer
+        RunLoop.main.add(timer, forMode: .common)
+        RunLoop.main.add(timer, forMode: .eventTracking)
+    }
+
+    private func stopAutoScrollTimer() {
+        autoScrollTimer?.invalidate()
+        autoScrollTimer = nil
+    }
+
+    private func autoScrollIfNeeded() {
+        guard isReordering,
+            let lastDragWindowLocation,
+            let scrollView = shelfScrollView(),
+            let documentView = scrollView.documentView
+        else {
+            return
+        }
+
+        let scrollFrameInWindow = scrollView.convert(
+            scrollView.bounds,
+            to: nil
+        )
+
+        guard scrollFrameInWindow.contains(lastDragWindowLocation) else {
+            return
+        }
+
+        let distanceToTop = scrollFrameInWindow.maxY
+            - lastDragWindowLocation.y
+        let distanceToBottom = lastDragWindowLocation.y
+            - scrollFrameInWindow.minY
+
+        let scrollDirection: CGFloat
+        let edgeDistance: CGFloat
+
+        if distanceToTop < autoScrollEdgeInset {
+            scrollDirection = documentView.isFlipped ? -1 : 1
+            edgeDistance = distanceToTop
+        } else if distanceToBottom < autoScrollEdgeInset {
+            scrollDirection = documentView.isFlipped ? 1 : -1
+            edgeDistance = distanceToBottom
+        } else {
+            return
+        }
+
+        let closeness = max(
+            0,
+            min(1, 1 - edgeDistance / autoScrollEdgeInset)
+        )
+        let step = max(3, autoScrollMaxStep * closeness)
+
+        let visibleRect = scrollView.contentView.bounds
+        let documentBounds = documentView.bounds
+        let maxY = max(
+            documentBounds.minY,
+            documentBounds.maxY - visibleRect.height
+        )
+
+        var newOrigin = visibleRect.origin
+        newOrigin.y = min(
+            max(newOrigin.y + step * scrollDirection, documentBounds.minY),
+            maxY
+        )
+
+        guard newOrigin.y != visibleRect.origin.y else {
+            return
+        }
+
+        scrollView.contentView.scroll(to: newOrigin)
+        scrollView.reflectScrolledClipView(scrollView.contentView)
+        updateDirectReorder(at: lastDragWindowLocation)
+    }
+
+    private func shelfScrollView() -> NSScrollView? {
+        var currentView: NSView? = self
+
+        while let view = currentView {
+            if let scrollView = view as? NSScrollView {
+                return scrollView
+            }
+
+            currentView = view.superview
+        }
+
+        return window?.contentView?.firstScrollViewDescendant()
     }
 
     private func item(atWindowLocation location: NSPoint) -> ShelfItem? {
@@ -309,8 +453,12 @@ final class FileDragSourceView: NSView, NSDraggingSource {
             }
 
             let frameInWindow = view.convert(view.bounds, to: nil)
+            let activationFrame = frameInWindow.insetBy(
+                dx: 0,
+                dy: min(reorderTargetInset, frameInWindow.height / 3)
+            )
 
-            if frameInWindow.contains(location) {
+            if activationFrame.contains(location) {
                 return view.item
             }
         }
@@ -332,6 +480,20 @@ private extension NSView {
         }
 
         return matches
+    }
+
+    func firstScrollViewDescendant() -> NSScrollView? {
+        for subview in subviews {
+            if let scrollView = subview as? NSScrollView {
+                return scrollView
+            }
+
+            if let scrollView = subview.firstScrollViewDescendant() {
+                return scrollView
+            }
+        }
+
+        return nil
     }
 }
 

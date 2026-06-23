@@ -259,7 +259,6 @@ struct ContentView: View {
                 }
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .allowsHitTesting(false)
         }
         .coordinateSpace(name: "ShelfList")
         .onPreferenceChange(ShelfRowFramePreferenceKey.self) { frames in
