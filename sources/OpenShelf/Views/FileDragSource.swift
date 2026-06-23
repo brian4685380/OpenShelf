@@ -72,6 +72,9 @@ final class FileDragSourceView: NSView, NSDraggingSource {
     private let autoScrollInterval: TimeInterval = 1.0 / 30.0
     private let reorderCooldown: TimeInterval = 0.12
     private let reorderTargetInset: CGFloat = 8
+    private let dragStartThreshold: CGFloat = 3
+    private let reorderStartThreshold: CGFloat = 8
+    private let reorderDominanceRatio: CGFloat = 1.25
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -119,24 +122,40 @@ final class FileDragSourceView: NSView, NSDraggingSource {
         let deltaY = event.locationInWindow.y
             - mouseDownEvent.locationInWindow.y
 
-        guard hypot(deltaX, deltaY) >= 3 else {
+        let absoluteDeltaX = abs(deltaX)
+        let absoluteDeltaY = abs(deltaY)
+
+        guard hypot(deltaX, deltaY) >= dragStartThreshold else {
             return
         }
 
-        if abs(deltaY) >= 3 {
+        let itemsToDrag = dragItems.isEmpty ? [item] : dragItems
+        let draggedItemIDs = Set(itemsToDrag.map(\.id))
+        let canReorder = hasReorderTarget(excluding: draggedItemIDs)
+        let shouldStartReorder = canReorder
+            && absoluteDeltaY >= reorderStartThreshold
+            && absoluteDeltaY > absoluteDeltaX * reorderDominanceRatio
+
+        if shouldStartReorder {
             hasStartedDragging = true
             isReordering = true
-            activeDragItems = dragItems.isEmpty ? [item] : dragItems
+            activeDragItems = itemsToDrag
             onDragStarted?()
             startAutoScrollTimer()
             updateDirectReorder(with: event)
             return
         }
 
+        guard !canReorder
+            || absoluteDeltaX >= dragStartThreshold
+            || absoluteDeltaX >= absoluteDeltaY
+        else {
+            return
+        }
+
         hasStartedDragging = true
         onDragStarted?()
 
-        let itemsToDrag = dragItems.isEmpty ? [item] : dragItems
         activeDragItems = itemsToDrag
 
         let dragSize = NSSize(width: 48, height: 48)
@@ -448,6 +467,24 @@ final class FileDragSourceView: NSView, NSDraggingSource {
         }
 
         return window?.contentView?.firstScrollViewDescendant()
+    }
+
+    private func hasReorderTarget(
+        excluding draggedItemIDs: Set<ShelfItem.ID>
+    ) -> Bool {
+        guard let contentView = window?.contentView else {
+            return false
+        }
+
+        return contentView.fileDragSourceDescendants().contains { view in
+            guard view !== self,
+                let targetItem = view.item
+            else {
+                return false
+            }
+
+            return !draggedItemIDs.contains(targetItem.id)
+        }
     }
 
     private func item(atWindowLocation location: NSPoint) -> ShelfItem? {

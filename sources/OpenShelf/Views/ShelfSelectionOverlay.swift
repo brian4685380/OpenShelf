@@ -71,10 +71,6 @@ final class ShelfSelectionOverlayView: NSView {
     private let autoScrollMaxStep: CGFloat = 12
     private let autoScrollInterval: TimeInterval = 1.0 / 30.0
 
-    override var isFlipped: Bool {
-        true
-    }
-
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
     }
@@ -110,7 +106,9 @@ final class ShelfSelectionOverlayView: NSView {
         )
         updateKnownRowContentFrames()
         self.mouseDownPoint = mouseDownPoint
-        mouseDownContentPoint = contentPoint(for: mouseDownPoint)
+        mouseDownContentPoint = contentPoint(
+            for: rowFramePoint(for: mouseDownPoint)
+        )
         selectionAddsToExisting = event.modifierFlags.contains(.command)
         selectionBaseIDs = selectionAddsToExisting
             ? selectedItemIDs
@@ -166,8 +164,10 @@ final class ShelfSelectionOverlayView: NSView {
     }
 
     private func isPointInFileRow(_ point: CGPoint) -> Bool {
-        rowFrames.values.contains { frame in
-            frame.contains(point)
+        let rowFramePoint = rowFramePoint(for: point)
+
+        return rowFrames.values.contains { frame in
+            frame.contains(rowFramePoint)
         }
     }
 
@@ -289,8 +289,8 @@ final class ShelfSelectionOverlayView: NSView {
         }
 
         selectionRect = normalizedRect(
-            from: mouseDownPoint,
-            to: currentPoint
+            from: rowFramePoint(for: mouseDownPoint),
+            to: rowFramePoint(for: currentPoint)
         )
         needsDisplay = true
 
@@ -408,9 +408,11 @@ final class ShelfSelectionOverlayView: NSView {
         and currentPoint: CGPoint,
         addingToExistingSelection: Bool
     ) -> Set<ShelfItem.ID> {
+        let startRowFramePoint = rowFramePoint(for: startPoint)
+        let currentRowFramePoint = rowFramePoint(for: currentPoint)
         let startContentPoint = mouseDownContentPoint
-            ?? contentPoint(for: startPoint)
-        let currentContentPoint = contentPoint(for: currentPoint)
+            ?? contentPoint(for: startRowFramePoint)
+        let currentContentPoint = contentPoint(for: currentRowFramePoint)
         let minY = min(startContentPoint.y, currentContentPoint.y)
         let maxY = max(startContentPoint.y, currentContentPoint.y)
 
@@ -453,6 +455,13 @@ final class ShelfSelectionOverlayView: NSView {
         return CGPoint(
             x: point.x + offset.x,
             y: point.y + offset.y
+        )
+    }
+
+    private func rowFramePoint(for point: CGPoint) -> CGPoint {
+        CGPoint(
+            x: point.x,
+            y: bounds.minY + bounds.maxY - point.y
         )
     }
 
