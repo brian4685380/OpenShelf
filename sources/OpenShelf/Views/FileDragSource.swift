@@ -366,25 +366,33 @@ final class FileDragSourceView: NSView, NSDraggingSource {
 
     private func autoScrollIfNeeded() {
         guard isReordering,
-            let lastDragWindowLocation,
+            let window = self.window,
             let scrollView = shelfScrollView(),
             let documentView = scrollView.documentView
         else {
             return
         }
 
+        guard NSEvent.pressedMouseButtons & 1 == 1 else {
+            stopAutoScrollTimer()
+            return
+        }
+
+        let currentWindowLocation = window.mouseLocationOutsideOfEventStream
+        lastDragWindowLocation = currentWindowLocation
+
         let scrollFrameInWindow = scrollView.convert(
             scrollView.bounds,
             to: nil
         )
 
-        guard scrollFrameInWindow.contains(lastDragWindowLocation) else {
+        guard scrollFrameInWindow.contains(currentWindowLocation) else {
             return
         }
 
         let distanceToTop = scrollFrameInWindow.maxY
-            - lastDragWindowLocation.y
-        let distanceToBottom = lastDragWindowLocation.y
+            - currentWindowLocation.y
+        let distanceToBottom = currentWindowLocation.y
             - scrollFrameInWindow.minY
 
         let scrollDirection: CGFloat
@@ -425,7 +433,7 @@ final class FileDragSourceView: NSView, NSDraggingSource {
 
         scrollView.contentView.scroll(to: newOrigin)
         scrollView.reflectScrolledClipView(scrollView.contentView)
-        updateDirectReorder(at: lastDragWindowLocation)
+        updateDirectReorder(at: currentWindowLocation)
     }
 
     private func shelfScrollView() -> NSScrollView? {

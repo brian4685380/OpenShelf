@@ -35,15 +35,34 @@ struct ShelfSelectionOverlay: NSViewRepresentable {
 }
 
 final class ShelfSelectionOverlayView: NSView {
-    var rowFrames: [ShelfItem.ID: CGRect] = [:]
-    var rowOrder: [ShelfItem.ID] = []
+    var rowFrames: [ShelfItem.ID: CGRect] = [:] {
+        didSet {
+            guard rowFrames != oldValue else {
+                return
+            }
+
+            updateKnownRowContentFrames()
+        }
+    }
+    var rowOrder: [ShelfItem.ID] = [] {
+        didSet {
+            guard rowOrder != oldValue else {
+                return
+            }
+
+            knownRowContentFrames = [:]
+            updateKnownRowContentFrames()
+        }
+    }
     var selectedItemIDs: Set<ShelfItem.ID> = []
     var onClearSelection: (() -> Void)?
     var onSelectionChanged: ((Set<ShelfItem.ID>, ShelfItem.ID?) -> Void)?
 
     private var mouseDownPoint: CGPoint?
+    private var mouseDownContentPoint: CGPoint?
     private var selectionRect: CGRect?
     private var selectionBaseIDs: Set<ShelfItem.ID> = []
+    private var knownRowContentFrames: [ShelfItem.ID: CGRect] = [:]
     private var selectionAddsToExisting = false
     private var isDraggingSelection = false
     private var lastDragWindowLocation: NSPoint?
@@ -58,30 +77,14 @@ final class ShelfSelectionOverlayView: NSView {
 
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
-
-        guard let selectionRect else {
-            return
-        }
-
-        let path = NSBezierPath(
-            roundedRect: selectionRect,
-            xRadius: 4,
-            yRadius: 4
-        )
-        NSColor.controlAccentColor
-            .withAlphaComponent(0.16)
-            .setFill()
-        path.fill()
-
-        NSColor.controlAccentColor
-            .withAlphaComponent(0.85)
-            .setStroke()
-        path.lineWidth = 1
-        path.stroke()
     }
 
     override func hitTest(_ point: NSPoint) -> NSView? {
         guard !rowFrames.isEmpty else {
+            return nil
+        }
+
+        guard !isPointInScrollBarRegion(point) else {
             return nil
         }
 
@@ -91,11 +94,23 @@ final class ShelfSelectionOverlayView: NSView {
             : self
     }
 
+    override func scrollWheel(with event: NSEvent) {
+        guard let scrollView = window?.contentView?.firstScrollViewDescendant() else {
+            super.scrollWheel(with: event)
+            return
+        }
+
+        scrollView.scrollWheel(with: event)
+    }
+
     override func mouseDown(with event: NSEvent) {
-        mouseDownPoint = convert(
+        let mouseDownPoint = convert(
             event.locationInWindow,
             from: nil
         )
+        updateKnownRowContentFrames()
+        self.mouseDownPoint = mouseDownPoint
+        mouseDownContentPoint = contentPoint(for: mouseDownPoint)
         selectionAddsToExisting = event.modifierFlags.contains(.command)
         selectionBaseIDs = selectionAddsToExisting
             ? selectedItemIDs
@@ -134,6 +149,7 @@ final class ShelfSelectionOverlayView: NSView {
     override func mouseUp(with event: NSEvent) {
         defer {
             mouseDownPoint = nil
+            mouseDownContentPoint = nil
             selectionRect = nil
             selectionBaseIDs = []
             selectionAddsToExisting = false
@@ -173,6 +189,100 @@ final class ShelfSelectionOverlayView: NSView {
         return false
     }
 
+    private func isPointInScrollBarRegion(_ point: CGPoint) -> Bool {
+        guard let scrollView = window?.contentView?.firstScrollViewDescendant() else {
+            return false
+        }
+
+        let windowPoint = convert(point, to: nil)
+        let scrollFrameInWindow = scrollView.convert(
+            scrollView.bounds,
+            to: nil
+        )
+
+        guard scrollFrameInWindow.contains(windowPoint) else {
+            return false
+        }
+
+        if scrollView.hasVerticalScroller,
+            isPoint(
+                windowPoint,
+                inScroller: scrollView.verticalScroller
+            )
+        {
+            return true
+        }
+
+        if scrollView.hasHorizontalScroller,
+            isPoint(
+                windowPoint,
+                inScroller: scrollView.horizontalScroller
+            )
+        {
+            return true
+        }
+
+        if scrollView.hasVerticalScroller {
+            let scrollerWidth = NSScroller.scrollerWidth(
+                for: .regular,
+                scrollerStyle: scrollView.scrollerStyle
+            )
+            let fallbackWidth = max(
+                scrollView.verticalScroller?.bounds.width ?? 0,
+                scrollerWidth
+            ) + 6
+            let fallbackFrame = CGRect(
+                x: scrollFrameInWindow.maxX - fallbackWidth,
+                y: scrollFrameInWindow.minY,
+                width: fallbackWidth,
+                height: scrollFrameInWindow.height
+            )
+
+            if fallbackFrame.contains(windowPoint) {
+                return true
+            }
+        }
+
+        if scrollView.hasHorizontalScroller {
+            let scrollerHeight = NSScroller.scrollerWidth(
+                for: .regular,
+                scrollerStyle: scrollView.scrollerStyle
+            )
+            let fallbackHeight = max(
+                scrollView.horizontalScroller?.bounds.height ?? 0,
+                scrollerHeight
+            ) + 6
+            let fallbackFrame = CGRect(
+                x: scrollFrameInWindow.minX,
+                y: scrollFrameInWindow.minY,
+                width: scrollFrameInWindow.width,
+                height: fallbackHeight
+            )
+
+            if fallbackFrame.contains(windowPoint) {
+                return true
+            }
+        }
+
+        return false
+    }
+
+    private func isPoint(
+        _ windowPoint: CGPoint,
+        inScroller scroller: NSScroller?
+    ) -> Bool {
+        guard let scroller,
+            !scroller.isHidden,
+            scroller.window != nil
+        else {
+            return false
+        }
+
+        return scroller.convert(scroller.bounds, to: nil)
+            .insetBy(dx: -4, dy: -4)
+            .contains(windowPoint)
+    }
+
     private func updateSelection(to currentPoint: CGPoint) {
         guard let mouseDownPoint else {
             return
@@ -184,7 +294,7 @@ final class ShelfSelectionOverlayView: NSView {
         )
         needsDisplay = true
 
-        let selectedIDs = selectedItemIDs(
+        let selectedIDs = updatedSelectionIDs(
             between: mouseDownPoint,
             and: currentPoint,
             addingToExistingSelection: selectionAddsToExisting
@@ -221,25 +331,33 @@ final class ShelfSelectionOverlayView: NSView {
 
     private func autoScrollIfNeeded() {
         guard isDraggingSelection,
-            let lastDragWindowLocation,
-            let scrollView = window?.contentView?.firstScrollViewDescendant(),
+            let window = self.window,
+            let scrollView = window.contentView?.firstScrollViewDescendant(),
             let documentView = scrollView.documentView
         else {
             return
         }
+
+        guard NSEvent.pressedMouseButtons & 1 == 1 else {
+            stopAutoScrollTimer()
+            return
+        }
+
+        let currentWindowLocation = window.mouseLocationOutsideOfEventStream
+        lastDragWindowLocation = currentWindowLocation
 
         let scrollFrameInWindow = scrollView.convert(
             scrollView.bounds,
             to: nil
         )
 
-        guard scrollFrameInWindow.contains(lastDragWindowLocation) else {
+        guard scrollFrameInWindow.contains(currentWindowLocation) else {
             return
         }
 
         let distanceToTop = scrollFrameInWindow.maxY
-            - lastDragWindowLocation.y
-        let distanceToBottom = lastDragWindowLocation.y
+            - currentWindowLocation.y
+        let distanceToBottom = currentWindowLocation.y
             - scrollFrameInWindow.minY
 
         let scrollDirection: CGFloat
@@ -281,21 +399,24 @@ final class ShelfSelectionOverlayView: NSView {
         scrollView.contentView.scroll(to: newOrigin)
         scrollView.reflectScrolledClipView(scrollView.contentView)
 
-        let currentPoint = convert(lastDragWindowLocation, from: nil)
+        let currentPoint = convert(currentWindowLocation, from: nil)
         updateSelection(to: currentPoint)
     }
 
-    private func selectedItemIDs(
+    private func updatedSelectionIDs(
         between startPoint: CGPoint,
         and currentPoint: CGPoint,
         addingToExistingSelection: Bool
     ) -> Set<ShelfItem.ID> {
-        let minY = min(startPoint.y, currentPoint.y)
-        let maxY = max(startPoint.y, currentPoint.y)
+        let startContentPoint = mouseDownContentPoint
+            ?? contentPoint(for: startPoint)
+        let currentContentPoint = contentPoint(for: currentPoint)
+        let minY = min(startContentPoint.y, currentContentPoint.y)
+        let maxY = max(startContentPoint.y, currentContentPoint.y)
 
         let rangeIDs = Set(
             rowOrder.filter { itemID in
-                guard let frame = rowFrames[itemID] else {
+                guard let frame = knownRowContentFrames[itemID] else {
                     return false
                 }
 
@@ -308,6 +429,39 @@ final class ShelfSelectionOverlayView: NSView {
         }
 
         return rangeIDs
+    }
+
+    private func updateKnownRowContentFrames() {
+        let validItemIDs = Set(rowOrder)
+        knownRowContentFrames = knownRowContentFrames.filter {
+            validItemIDs.contains($0.key)
+        }
+
+        let offset = currentScrollOffset()
+
+        for (itemID, frame) in rowFrames {
+            knownRowContentFrames[itemID] = frame.offsetBy(
+                dx: offset.x,
+                dy: offset.y
+            )
+        }
+    }
+
+    private func contentPoint(for point: CGPoint) -> CGPoint {
+        let offset = currentScrollOffset()
+
+        return CGPoint(
+            x: point.x + offset.x,
+            y: point.y + offset.y
+        )
+    }
+
+    private func currentScrollOffset() -> CGPoint {
+        window?.contentView?
+            .firstScrollViewDescendant()?
+            .contentView
+            .bounds
+            .origin ?? .zero
     }
 
     private func normalizedRect(
