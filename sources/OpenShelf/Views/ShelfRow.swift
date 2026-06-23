@@ -1,8 +1,17 @@
+import AppKit
 import SwiftUI
 
 struct ShelfRow: View {
     let item: ShelfItem
-    let onDragCompleted: (NSDragOperation) -> Void
+    let isSelected: Bool
+    let insertionPlacement: ShelfInsertionPlacement?
+    let dragItems: [ShelfItem]
+    let onDragStarted: () -> Void
+    let onDragCompleted: (NSDragOperation, [ShelfItem]) -> Void
+    let onDragEnded: () -> Void
+    let onClick: (NSEvent.ModifierFlags) -> Void
+    let onReorderDropEntered: ([ShelfItem], ShelfItem) -> Void
+    let onReorderDropEnded: () -> Void
 
     let onOpen: () -> Void
     let onQuickLook: () -> Void
@@ -43,11 +52,19 @@ struct ShelfRow: View {
                 cornerRadius: 10,
                 style: .continuous
             )
-            .fill(
-                isHovering
-                    ? Color.secondary.opacity(0.10)
-                    : Color.clear
-            )
+            .fill(rowBackgroundColor)
+        }
+        .overlay(alignment: .top) {
+            if insertionPlacement == .above {
+                insertionLine
+                    .offset(y: -4)
+            }
+        }
+        .overlay(alignment: .bottom) {
+            if insertionPlacement == .below {
+                insertionLine
+                    .offset(y: 4)
+            }
         }
         .contentShape(Rectangle())
         .onHover { hovering in
@@ -131,10 +148,49 @@ struct ShelfRow: View {
 
             FileDragSource(
                 item: item,
+                dragItems: dragItems,
+                onDragStarted: onDragStarted,
                 onDragCompleted: onDragCompleted,
+                onDragEnded: onDragEnded,
+                onClick: onClick,
+                onReorderDropEntered: onReorderDropEntered,
+                onReorderDropEnded: onReorderDropEnded,
                 onDoubleClick: onOpen
             )
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .contentShape(Rectangle())
+    }
+
+    private var rowBackgroundColor: Color {
+        if isSelected {
+            return Color.accentColor.opacity(isHovering ? 0.24 : 0.18)
+        }
+
+        if isHovering {
+            return Color.secondary.opacity(0.10)
+        }
+
+        return Color.clear
+    }
+
+    private var insertionLine: some View {
+        HStack(spacing: 0) {
+            Circle()
+                .fill(Color.accentColor)
+                .frame(width: 7, height: 7)
+
+            Rectangle()
+                .fill(Color.accentColor)
+                .frame(height: 3)
+                .clipShape(Capsule())
+        }
+        .padding(.horizontal, 2)
+        .shadow(
+            color: Color.accentColor.opacity(0.45),
+            radius: 3,
+            x: 0,
+            y: 0
+        )
     }
 }

@@ -11,6 +11,11 @@ struct ContentView: View {
     let onDropTargetChanged: (Bool) -> Void
 
     @State private var isDropTargeted = false
+    @State private var selectedItemIDs: Set<ShelfItem.ID> = []
+    @State private var lastSelectedItemID: ShelfItem.ID?
+    @State private var reorderedItemIDs: Set<ShelfItem.ID> = []
+    @State private var insertionIndicator: ShelfInsertionIndicator?
+    @State private var rowFrames: [ShelfItem.ID: CGRect] = [:]
 
     var body: some View {
         VStack(spacing: 0) {
@@ -37,6 +42,9 @@ struct ContentView: View {
             if isEmpty {
                 onEmpty()
             }
+        }
+        .onChange(of: store.items.map(\.id)) { itemIDs in
+            pruneSelection(validItemIDs: Set(itemIDs))
         }
         .onDrop(
             of: [UTType.fileURL.identifier],
@@ -80,6 +88,7 @@ struct ContentView: View {
                     }
 
                 Button {
+                    clearSelection()
                     store.clear()
                 } label: {
                     Image(systemName: "trash")
@@ -151,40 +160,110 @@ struct ContentView: View {
     }
 
     private var itemList: some View {
-        ScrollView {
-            LazyVStack(spacing: 6) {
-                ForEach(store.items) { item in
-                    ShelfRow(
-                        item: item,
-                        onDragCompleted: { operation in
-                            if operation.contains(.move) {
-                                print("Moved:", item.url.path)
-                            } else if operation.contains(.copy) {
-                                print("Copied:", item.url.path)
-                            }
+        ZStack {
+            ScrollView {
+                LazyVStack(spacing: 6) {
+                    ForEach(store.items) { item in
+                        ShelfRow(
+                            item: item,
+                            isSelected: selectedItemIDs.contains(item.id),
+                            insertionPlacement: insertionPlacement(for: item),
+                            dragItems: dragItems(for: item),
+                            onDragStarted: {
+                                beginReorder(for: item)
+                            },
+                            onDragCompleted: { operation, draggedItems in
+                                if operation.contains(.move) {
+                                    print(
+                                        "Moved \(draggedItems.count) shelf item(s)."
+                                    )
+                                } else if operation.contains(.copy) {
+                                    print(
+                                        "Copied \(draggedItems.count) shelf item(s)."
+                                    )
+                                }
 
-                            store.remove(item)
-                            onDragOutCompleted()
-                        },
-                        onOpen: {
-                            store.open(item)
-                        },
-                        onQuickLook: {
-                            store.quickLook(item)
-                        },
-                        onRevealInFinder: {
-                            store.revealInFinder(item)
-                        },
-                        onCopyPath: {
-                            store.copyPath(item)
-                        },
-                        onRemove: {
-                            store.remove(item)
+                                store.remove(draggedItems)
+                                selectedItemIDs.subtract(
+                                    draggedItems.map(\.id)
+                                )
+                                onDragOutCompleted()
+                            },
+                            onDragEnded: {
+                                endReorder()
+                            },
+                            onClick: { modifiers in
+                                updateSelection(
+                                    for: item,
+                                    modifiers: modifiers
+                                )
+                            },
+                            onReorderDropEntered: { movingItems, targetItem in
+                                moveReorderedItems(
+                                    movingItems,
+                                    to: targetItem
+                                )
+                            },
+                            onReorderDropEnded: {
+                                endReorder()
+                            },
+                            onOpen: {
+                                store.open(actionItems(for: item))
+                            },
+                            onQuickLook: {
+                                store.quickLook(actionItems(for: item))
+                            },
+                            onRevealInFinder: {
+                                store.revealInFinder(actionItems(for: item))
+                            },
+                            onCopyPath: {
+                                store.copyPath(actionItems(for: item))
+                            },
+                            onRemove: {
+                                let items = actionItems(for: item)
+                                store.remove(items)
+                                selectedItemIDs.subtract(items.map(\.id))
+                            }
+                        )
+                        .background {
+                            GeometryReader { proxy in
+                                Color.clear.preference(
+                                    key: ShelfRowFramePreferenceKey.self,
+                                    value: [
+                                        item.id: proxy.frame(
+                                            in: .named("ShelfList")
+                                        )
+                                    ]
+                                )
+                            }
                         }
-                    )
+                    }
                 }
+                .padding(10)
+                .animation(
+                    .easeInOut(duration: 0.12),
+                    value: store.items.map(\.id)
+                )
             }
-            .padding(10)
+
+            ShelfSelectionOverlay(
+                rowFrames: rowFrames,
+                rowOrder: store.items.map(\.id),
+                selectedItemIDs: selectedItemIDs,
+                onClearSelection: {
+                    clearSelection()
+                },
+                onSelectionChanged: { itemIDs, lastItemID in
+                    selectedItemIDs = itemIDs
+                    lastSelectedItemID = lastItemID
+                }
+            )
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .allowsHitTesting(false)
+        }
+        .coordinateSpace(name: "ShelfList")
+        .onPreferenceChange(ShelfRowFramePreferenceKey.self) { frames in
+            rowFrames = frames
         }
         .background {
             ZStack {
@@ -198,6 +277,15 @@ struct ContentView: View {
     }
 
     private func handleDrop(_ providers: [NSItemProvider]) -> Bool {
+        if providers.contains(where: {
+            $0.hasItemConformingToTypeIdentifier(
+                shelfReorderPasteboardTypeIdentifier
+            )
+        }) {
+            endReorder()
+            return true
+        }
+
         let fileProviders = providers.filter {
             $0.hasItemConformingToTypeIdentifier(
                 UTType.fileURL.identifier
@@ -207,6 +295,8 @@ struct ContentView: View {
         guard !fileProviders.isEmpty else {
             return false
         }
+
+        clearSelection()
 
         for provider in fileProviders {
             provider.loadItem(
@@ -264,4 +354,183 @@ struct ContentView: View {
         return true
     }
 
+    private func dragItems(for item: ShelfItem) -> [ShelfItem] {
+        guard selectedItemIDs.contains(item.id) else {
+            return [item]
+        }
+
+        let selectedItems = store.items.filter {
+            selectedItemIDs.contains($0.id)
+        }
+
+        return selectedItems.isEmpty ? [item] : selectedItems
+    }
+
+    private func actionItems(for item: ShelfItem) -> [ShelfItem] {
+        guard selectedItemIDs.contains(item.id) else {
+            return [item]
+        }
+
+        let selectedItems = store.items.filter {
+            selectedItemIDs.contains($0.id)
+        }
+
+        return selectedItems.isEmpty ? [item] : selectedItems
+    }
+
+    private func beginReorder(for item: ShelfItem) {
+        insertionIndicator = nil
+
+        let items = actionItems(for: item)
+        reorderedItemIDs = Set(items.map(\.id))
+
+        if !selectedItemIDs.contains(item.id) {
+            selectedItemIDs = [item.id]
+            lastSelectedItemID = item.id
+        }
+    }
+
+    private func moveReorderedItems(
+        _ movingItems: [ShelfItem],
+        to targetItem: ShelfItem
+    ) {
+        let itemsToMove = movingItems.isEmpty
+            ? store.items.filter {
+                reorderedItemIDs.contains($0.id)
+            }
+            : movingItems
+
+        updateInsertionIndicator(
+            movingItems: itemsToMove,
+            targetItem: targetItem
+        )
+
+        withAnimation(.easeInOut(duration: 0.12)) {
+            store.move(itemsToMove, to: targetItem)
+        }
+    }
+
+    private func endReorder() {
+        reorderedItemIDs = []
+        insertionIndicator = nil
+    }
+
+    private func updateInsertionIndicator(
+        movingItems: [ShelfItem],
+        targetItem: ShelfItem
+    ) {
+        let movingItemIDs = Set(movingItems.map(\.id))
+
+        guard
+            let firstMovingIndex = store.items.firstIndex(where: {
+                movingItemIDs.contains($0.id)
+            }),
+            let targetIndex = store.items.firstIndex(of: targetItem)
+        else {
+            insertionIndicator = nil
+            return
+        }
+
+        insertionIndicator = ShelfInsertionIndicator(
+            itemID: targetItem.id,
+            placement: firstMovingIndex < targetIndex ? .below : .above
+        )
+    }
+
+    private func insertionPlacement(
+        for item: ShelfItem
+    ) -> ShelfInsertionPlacement? {
+        guard insertionIndicator?.itemID == item.id else {
+            return nil
+        }
+
+        return insertionIndicator?.placement
+    }
+
+    private func updateSelection(
+        for item: ShelfItem,
+        modifiers: NSEvent.ModifierFlags
+    ) {
+        if modifiers.contains(.shift),
+            let lastSelectedItemID,
+            let anchorIndex = store.items.firstIndex(where: {
+                $0.id == lastSelectedItemID
+            }),
+            let currentIndex = store.items.firstIndex(of: item)
+        {
+            let range = anchorIndex <= currentIndex
+                ? anchorIndex...currentIndex
+                : currentIndex...anchorIndex
+            let rangeIDs = Set(store.items[range].map(\.id))
+
+            if modifiers.contains(.command) {
+                selectedItemIDs.formUnion(rangeIDs)
+            } else {
+                selectedItemIDs = rangeIDs
+            }
+
+            return
+        }
+
+        if modifiers.contains(.command) {
+            if selectedItemIDs.contains(item.id) {
+                selectedItemIDs.remove(item.id)
+
+                if lastSelectedItemID == item.id {
+                    lastSelectedItemID = selectedItemIDs.first
+                }
+            } else {
+                selectedItemIDs.insert(item.id)
+                lastSelectedItemID = item.id
+            }
+
+            return
+        }
+
+        if selectedItemIDs.contains(item.id),
+            selectedItemIDs.count > 1
+        {
+            lastSelectedItemID = item.id
+            return
+        }
+
+        selectedItemIDs = [item.id]
+        lastSelectedItemID = item.id
+    }
+
+    private func clearSelection() {
+        selectedItemIDs = []
+        lastSelectedItemID = nil
+        endReorder()
+    }
+
+    private func pruneSelection(validItemIDs: Set<ShelfItem.ID>) {
+        selectedItemIDs.formIntersection(validItemIDs)
+        reorderedItemIDs.formIntersection(validItemIDs)
+
+        if let lastSelectedItemID,
+            !validItemIDs.contains(lastSelectedItemID)
+        {
+            self.lastSelectedItemID = selectedItemIDs.first
+        }
+    }
+
+}
+
+private struct ShelfRowFramePreferenceKey: PreferenceKey {
+    static var defaultValue: [ShelfItem.ID: CGRect] = [:]
+
+    static func reduce(
+        value: inout [ShelfItem.ID: CGRect],
+        nextValue: () -> [ShelfItem.ID: CGRect]
+    ) {
+        value.merge(nextValue()) { _, new in
+            new
+        }
+    }
+}
+
+private struct ShelfInsertionIndicator {
+    let itemID: ShelfItem.ID
+    let placement: ShelfInsertionPlacement
 }

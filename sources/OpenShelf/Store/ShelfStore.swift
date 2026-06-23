@@ -44,6 +44,51 @@ final class ShelfStore: ObservableObject {
         items.removeAll { $0.id == item.id }
     }
 
+    func remove(_ items: [ShelfItem]) {
+        for item in items {
+            remove(item)
+        }
+    }
+
+    func move(_ movingItems: [ShelfItem], to targetItem: ShelfItem) {
+        let movingItemIDs = Set(movingItems.map(\.id))
+
+        guard
+            !movingItemIDs.isEmpty,
+            !movingItemIDs.contains(targetItem.id),
+            let targetIndex = items.firstIndex(of: targetItem),
+            let firstMovingIndex = items.firstIndex(where: {
+                movingItemIDs.contains($0.id)
+            })
+        else {
+            return
+        }
+
+        let orderedMovingItems = items.filter {
+            movingItemIDs.contains($0.id)
+        }
+        var remainingItems = items.filter {
+            !movingItemIDs.contains($0.id)
+        }
+
+        guard let insertionTargetIndex = remainingItems.firstIndex(
+            of: targetItem
+        ) else {
+            return
+        }
+
+        let insertionIndex = firstMovingIndex < targetIndex
+            ? insertionTargetIndex + 1
+            : insertionTargetIndex
+
+        remainingItems.insert(
+            contentsOf: orderedMovingItems,
+            at: insertionIndex
+        )
+
+        items = remainingItems
+    }
+
     func open(_ item: ShelfItem) {
         guard fileExists(item) else {
             remove(item)
@@ -53,6 +98,12 @@ final class ShelfStore: ObservableObject {
         NSWorkspace.shared.open(item.url)
     }
 
+    func open(_ items: [ShelfItem]) {
+        for item in items {
+            open(item)
+        }
+    }
+
     func quickLook(_ item: ShelfItem) {
         guard fileExists(item) else {
             remove(item)
@@ -60,6 +111,21 @@ final class ShelfStore: ObservableObject {
         }
 
         QuickLookPreviewer.shared.preview(url: item.url)
+    }
+
+    func quickLook(_ items: [ShelfItem]) {
+        let existingItems = items.filter { item in
+            if fileExists(item) {
+                return true
+            }
+
+            remove(item)
+            return false
+        }
+
+        QuickLookPreviewer.shared.preview(
+            urls: existingItems.map(\.url)
+        )
     }
 
     func revealInFinder(_ item: ShelfItem) {
@@ -73,6 +139,21 @@ final class ShelfStore: ObservableObject {
         ])
     }
 
+    func revealInFinder(_ items: [ShelfItem]) {
+        let existingItems = items.filter { item in
+            if fileExists(item) {
+                return true
+            }
+
+            remove(item)
+            return false
+        }
+
+        NSWorkspace.shared.activateFileViewerSelecting(
+            existingItems.map(\.url)
+        )
+    }
+
     func copyPath(_ item: ShelfItem) {
         guard fileExists(item) else {
             remove(item)
@@ -82,6 +163,23 @@ final class ShelfStore: ObservableObject {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(
             item.url.path,
+            forType: .string
+        )
+    }
+
+    func copyPath(_ items: [ShelfItem]) {
+        let existingItems = items.filter { item in
+            if fileExists(item) {
+                return true
+            }
+
+            remove(item)
+            return false
+        }
+
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(
+            existingItems.map(\.url.path).joined(separator: "\n"),
             forType: .string
         )
     }
