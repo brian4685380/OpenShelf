@@ -239,7 +239,9 @@ struct ContentView: View {
                         }
                     }
                 }
-                .padding(10)
+                .padding(.horizontal, 10)
+                .padding(.top, 0)
+                .padding(.bottom, 10)
                 .animation(
                     .easeInOut(duration: 0.12),
                     value: store.items.map(\.id)

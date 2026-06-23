@@ -1,5 +1,5 @@
 cask "openshelf" do
-  version "0.3.0"
+  version "0.4.1"
   sha256 :no_check
 
   url "https://github.com/brian4685380/OpenShelf/releases/download/v#{version}/OpenShelf-v#{version}-macOS.zip"

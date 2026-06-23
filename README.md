@@ -165,7 +165,7 @@ To create the `.app`, `.zip`, and `.dmg` release artifacts:
 
 ```bash
 chmod +x scripts/package_app.sh
-./scripts/package_app.sh 0.4.0
+./scripts/package_app.sh 0.4.1
 ```
 
 The first packaging run creates a local virtual environment under `.build/`
@@ -178,8 +178,8 @@ Generated files will be placed in:
 dist/
 ├── OpenShelf.app
 ├── shelf
-├── OpenShelf-v0.4.0-macOS.zip
-├── OpenShelf-v0.4.0-macOS.dmg
+├── OpenShelf-v0.4.1-macOS.zip
+├── OpenShelf-v0.4.1-macOS.dmg
 └── openshelf.rb
 ```
 
@@ -191,7 +191,7 @@ OpenShelf.app/Contents/MacOS/shelf
 ```
 
 The generated `dist/openshelf.rb` file contains the release ZIP checksum. After
-uploading `OpenShelf-v0.4.0-macOS.zip` to the matching GitHub release, copy the
+uploading `OpenShelf-v0.4.1-macOS.zip` to the matching GitHub release, copy the
 generated cask into the Homebrew tap:
 
 ```bash
@@ -199,7 +199,7 @@ cp dist/openshelf.rb /opt/homebrew/Library/Taps/brian4685380/homebrew-openshelf/
 
 cd /opt/homebrew/Library/Taps/brian4685380/homebrew-openshelf
 git add Casks/openshelf.rb
-git commit -m "Update OpenShelf to 0.4.0"
+git commit -m "Update OpenShelf to 0.4.1"
 git push
 ```
 
