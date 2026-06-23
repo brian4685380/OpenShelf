@@ -150,7 +150,7 @@ struct ContentView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background {
             ZStack {
-                Color.black.opacity(1.0)
+                Color(nsColor: .windowBackgroundColor)
 
                 if isDropTargeted {
                     Color.accentColor.opacity(0.08)
@@ -266,7 +266,7 @@ struct ContentView: View {
         }
         .background {
             ZStack {
-                Color.black.opacity(1.0)
+                Color(nsColor: .windowBackgroundColor)
 
                 if isDropTargeted {
                     Color.accentColor.opacity(0.08)
