@@ -121,31 +121,31 @@ struct ShelfRow: View {
     }
 
     private var draggableContent: some View {
-        ZStack {
-            HStack(spacing: 10) {
-                FileIcon(url: item.url)
+        HStack(spacing: 10) {
+            FileIcon(url: item.url)
 
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(item.url.lastPathComponent)
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(.primary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-
-                    Text(
-                        item.url
-                            .deletingLastPathComponent()
-                            .path
-                    )
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(item.url.lastPathComponent)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(.primary)
                     .lineLimit(1)
                     .truncationMode(.middle)
-                }
 
-                Spacer(minLength: 8)
+                Text(
+                    item.url
+                        .deletingLastPathComponent()
+                        .path
+                )
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .truncationMode(.middle)
             }
 
+            Spacer(minLength: 8)
+        }
+        .contentShape(Rectangle())
+        .overlay {
             FileDragSource(
                 item: item,
                 dragItems: dragItems,
@@ -157,9 +157,7 @@ struct ShelfRow: View {
                 onReorderDropEnded: onReorderDropEnded,
                 onDoubleClick: onOpen
             )
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .contentShape(Rectangle())
     }
 
     private var rowBackgroundColor: Color {

@@ -21,8 +21,8 @@ struct ContentView: View {
         VStack(spacing: 0) {
             header
 
-            Divider()
-                .opacity(0.45)
+            // Divider()
+            //     .opacity(0.45)
 
             if store.items.isEmpty {
                 emptyState
@@ -160,7 +160,13 @@ struct ContentView: View {
     }
 
     private var itemList: some View {
-        ZStack {
+        ZStack(alignment: .topLeading) {
+            Color(nsColor: .windowBackgroundColor)
+
+            if isDropTargeted {
+                Color.accentColor.opacity(0.08)
+            }
+
             ScrollView {
                 LazyVStack(spacing: 6) {
                     ForEach(store.items) { item in
@@ -184,9 +190,11 @@ struct ContentView: View {
                                 }
 
                                 store.remove(draggedItems)
+
                                 selectedItemIDs.subtract(
                                     draggedItems.map(\.id)
                                 )
+
                                 onDragOutCompleted()
                             },
                             onDragEnded: {
@@ -198,7 +206,10 @@ struct ContentView: View {
                                     modifiers: modifiers
                                 )
                             },
-                            onReorderDropEntered: { movingItems, targetItem in
+                            onReorderDropEntered: {
+                                movingItems,
+                                targetItem in
+
                                 moveReorderedItems(
                                     movingItems,
                                     to: targetItem
@@ -208,21 +219,33 @@ struct ContentView: View {
                                 endReorder()
                             },
                             onOpen: {
-                                store.open(actionItems(for: item))
+                                store.open(
+                                    actionItems(for: item)
+                                )
                             },
                             onQuickLook: {
-                                store.quickLook(actionItems(for: item))
+                                store.quickLook(
+                                    actionItems(for: item)
+                                )
                             },
                             onRevealInFinder: {
-                                store.revealInFinder(actionItems(for: item))
+                                store.revealInFinder(
+                                    actionItems(for: item)
+                                )
                             },
                             onCopyPath: {
-                                store.copyPath(actionItems(for: item))
+                                store.copyPath(
+                                    actionItems(for: item)
+                                )
                             },
                             onRemove: {
                                 let items = actionItems(for: item)
+
                                 store.remove(items)
-                                selectedItemIDs.subtract(items.map(\.id))
+
+                                selectedItemIDs.subtract(
+                                    items.map(\.id)
+                                )
                             }
                         )
                         .background {
@@ -240,13 +263,17 @@ struct ContentView: View {
                     }
                 }
                 .padding(.horizontal, 10)
-                .padding(.top, 0)
                 .padding(.bottom, 10)
                 .animation(
                     .easeInOut(duration: 0.12),
                     value: store.items.map(\.id)
                 )
             }
+            .frame(
+                maxWidth: .infinity,
+                maxHeight: .infinity,
+                alignment: .top
+            )
 
             ShelfSelectionOverlay(
                 rowFrames: rowFrames,
@@ -260,20 +287,16 @@ struct ContentView: View {
                     lastSelectedItemID = lastItemID
                 }
             )
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .frame(
+                maxWidth: .infinity,
+                maxHeight: .infinity
+            )
         }
         .coordinateSpace(name: "ShelfList")
-        .onPreferenceChange(ShelfRowFramePreferenceKey.self) { frames in
+        .onPreferenceChange(
+            ShelfRowFramePreferenceKey.self
+        ) { frames in
             rowFrames = frames
-        }
-        .background {
-            ZStack {
-                Color(nsColor: .windowBackgroundColor)
-
-                if isDropTargeted {
-                    Color.accentColor.opacity(0.08)
-                }
-            }
         }
     }
 
@@ -395,7 +418,8 @@ struct ContentView: View {
         _ movingItems: [ShelfItem],
         to targetItem: ShelfItem
     ) {
-        let itemsToMove = movingItems.isEmpty
+        let itemsToMove =
+            movingItems.isEmpty
             ? store.items.filter {
                 reorderedItemIDs.contains($0.id)
             }
@@ -459,7 +483,8 @@ struct ContentView: View {
             }),
             let currentIndex = store.items.firstIndex(of: item)
         {
-            let range = anchorIndex <= currentIndex
+            let range =
+                anchorIndex <= currentIndex
                 ? anchorIndex...currentIndex
                 : currentIndex...anchorIndex
             let rangeIDs = Set(store.items[range].map(\.id))
