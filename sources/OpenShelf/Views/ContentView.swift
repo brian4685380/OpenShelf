@@ -6,6 +6,7 @@ struct ContentView: View {
     @ObservedObject var store: ShelfStore
     let onHoverChanged: (Bool) -> Void
     let onClose: () -> Void
+    let onEmpty: () -> Void
     let onDragOutCompleted: () -> Void
     let onDropTargetChanged: (Bool) -> Void
 
@@ -31,6 +32,11 @@ struct ContentView: View {
         }
         .onChange(of: isDropTargeted) { isTargeted in
             onDropTargetChanged(isTargeted)
+        }
+        .onChange(of: store.items.isEmpty) { isEmpty in
+            if isEmpty {
+                onEmpty()
+            }
         }
         .onDrop(
             of: [UTType.fileURL.identifier],

@@ -159,6 +159,9 @@ final class FloatingShelfController {
             onClose: { [weak self] in
                 self?.closeShelf()
             },
+            onEmpty: { [weak self] in
+                self?.closeShelf()
+            },
             onDragOutCompleted: { [weak self] in
                 self?.handleDragOutCompleted()
             },
