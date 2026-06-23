@@ -56,15 +56,14 @@ The shelf stores references to the original files rather than creating its own c
 Homebrew is the recommended way to install OpenShelf if you want the `shelf`
 CLI to be available automatically.
 
-After the Homebrew tap is published:
-
 ```bash
 brew tap brian4685380/openshelf
 brew install --cask openshelf
 ```
 
 Homebrew installs `OpenShelf.app` and links the bundled `shelf` command into
-Homebrew's bin directory.
+Homebrew's bin directory. The Homebrew cask is backed by the release ZIP asset,
+so each release ZIP must include `OpenShelf.app/Contents/MacOS/shelf`.
 
 ```bash
 shelf ~/Desktop/example.pdf ~/Downloads/example-folder
@@ -129,7 +128,7 @@ Additional actions are available from each item's context menu.
 
 OpenShelf is under active development.
 
-The current v0.3.0 release supports the core shelf workflow, multi-selection, dragging multiple selected items, manual row reordering, adaptive light/dark appearance, and improved DMG installation guidance.
+The current release supports the core shelf workflow, multi-selection, dragging multiple selected items, manual row reordering, adaptive light/dark appearance, Homebrew distribution, and DMG installation guidance.
 
 Bug reports, feature suggestions, and contributions are welcome.
 
@@ -166,7 +165,7 @@ To create the `.app`, `.zip`, and `.dmg` release artifacts:
 
 ```bash
 chmod +x scripts/package_app.sh
-./scripts/package_app.sh 0.3.0
+./scripts/package_app.sh 0.4.0
 ```
 
 The first packaging run creates a local virtual environment under `.build/`
@@ -179,13 +178,30 @@ Generated files will be placed in:
 dist/
 ├── OpenShelf.app
 ├── shelf
-├── OpenShelf-v0.3.0-macOS.zip
-├── OpenShelf-v0.3.0-macOS.dmg
+├── OpenShelf-v0.4.0-macOS.zip
+├── OpenShelf-v0.4.0-macOS.dmg
 └── openshelf.rb
 ```
 
-The generated `dist/openshelf.rb` file contains the release ZIP checksum and can
-be copied into a Homebrew tap repository under `Casks/openshelf.rb`.
+The release ZIP is used by Homebrew and must contain both:
+
+```text
+OpenShelf.app/Contents/MacOS/OpenShelf
+OpenShelf.app/Contents/MacOS/shelf
+```
+
+The generated `dist/openshelf.rb` file contains the release ZIP checksum. After
+uploading `OpenShelf-v0.4.0-macOS.zip` to the matching GitHub release, copy the
+generated cask into the Homebrew tap:
+
+```bash
+cp dist/openshelf.rb /opt/homebrew/Library/Taps/brian4685380/homebrew-openshelf/Casks/openshelf.rb
+
+cd /opt/homebrew/Library/Taps/brian4685380/homebrew-openshelf
+git add Casks/openshelf.rb
+git commit -m "Update OpenShelf to 0.4.0"
+git push
+```
 
 ## Built With
 
