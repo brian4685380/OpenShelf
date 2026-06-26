@@ -36,6 +36,13 @@ final class EdgeTriggerController {
         triggerPanels.removeAll()
     }
 
+    func refresh() {
+        for panel in triggerPanels {
+            configureFloatingBehavior(for: panel)
+            panel.orderFrontRegardless()
+        }
+    }
+
     private func makeTriggerPanel(
         for screen: NSScreen,
         edge: ShelfEdge
@@ -87,21 +94,24 @@ final class EdgeTriggerController {
 
         panel.contentView = triggerView
 
-        panel.level = .statusBar
-        panel.isFloatingPanel = true
-        panel.hidesOnDeactivate = false
+        configureFloatingBehavior(for: panel)
         panel.hasShadow = false
         panel.isOpaque = false
         panel.backgroundColor = .clear
         panel.ignoresMouseEvents = false
 
+        return panel
+    }
+
+    private func configureFloatingBehavior(for panel: NSPanel) {
+        panel.level = .statusBar
+        panel.isFloatingPanel = true
+        panel.hidesOnDeactivate = false
         panel.collectionBehavior = [
             .canJoinAllSpaces,
             .fullScreenAuxiliary,
             .stationary,
             .ignoresCycle,
         ]
-
-        return panel
     }
 }

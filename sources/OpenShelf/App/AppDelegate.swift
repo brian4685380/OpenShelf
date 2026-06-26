@@ -24,12 +24,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         triggerController.start()
         edgeTriggerController = triggerController
+        observeWorkspaceChanges()
 
         print("OpenShelf is running as a menu bar app.")
         print("Drag a file to the left or right edge of the screen.")
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        NSWorkspace.shared.notificationCenter.removeObserver(self)
         edgeTriggerController?.stop()
     }
 
@@ -97,6 +99,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem = item
     }
 
+    private func observeWorkspaceChanges() {
+        let notificationCenter = NSWorkspace.shared.notificationCenter
+
+        notificationCenter.addObserver(
+            self,
+            selector: #selector(refreshFloatingWindows),
+            name: NSWorkspace.activeSpaceDidChangeNotification,
+            object: nil
+        )
+
+        notificationCenter.addObserver(
+            self,
+            selector: #selector(refreshFloatingWindows),
+            name: NSWorkspace.didActivateApplicationNotification,
+            object: nil
+        )
+    }
+
     private func menuBarIcon() -> NSImage? {
         let bundledIconURLs = [
             Bundle.main.url(forResource: "AppIcon", withExtension: "png"),
@@ -127,6 +147,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func clearShelf() {
         shelfController.clearShelf()
+    }
+
+    @objc private func refreshFloatingWindows() {
+        edgeTriggerController?.refresh()
+        shelfController.refreshAlwaysOnTop()
     }
 
     @objc private func installCLITool() {

@@ -102,6 +102,15 @@ final class FloatingShelfController {
         store.clear()
     }
 
+    func refreshAlwaysOnTop() {
+        guard isShelfPresented, let panel, panel.isVisible else {
+            return
+        }
+
+        configureFloatingBehavior(for: panel)
+        panel.orderFrontRegardless()
+    }
+
     func addAndShow(urls: [URL]) {
         guard !urls.isEmpty else {
             return
@@ -205,23 +214,26 @@ final class FloatingShelfController {
         panel.title = "OpenShelf"
         panel.contentView = hostingView
 
-        panel.level = .floating
-        panel.isFloatingPanel = true
-        panel.hidesOnDeactivate = false
+        configureFloatingBehavior(for: panel)
         panel.isMovableByWindowBackground = false
-
-        panel.collectionBehavior = [
-            .canJoinAllSpaces,
-            .fullScreenAuxiliary,
-            .stationary,
-            .ignoresCycle,
-        ]
 
         panel.isOpaque = false
         panel.backgroundColor = .clear
         panel.hasShadow = false
 
         return panel
+    }
+
+    private func configureFloatingBehavior(for panel: NSPanel) {
+        panel.level = .statusBar
+        panel.isFloatingPanel = true
+        panel.hidesOnDeactivate = false
+        panel.collectionBehavior = [
+            .canJoinAllSpaces,
+            .fullScreenAuxiliary,
+            .stationary,
+            .ignoresCycle,
+        ]
     }
 
     private func handleHoverChanged(_ isHovering: Bool) {
