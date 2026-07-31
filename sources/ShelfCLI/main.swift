@@ -49,6 +49,7 @@ private func existingFilePaths(from arguments: [String]) -> [String] {
 private func isOpenShelfRunning() -> Bool {
     NSWorkspace.shared.runningApplications.contains {
         $0.bundleIdentifier == appBundleIdentifier
+            || $0.localizedName == "OpenShelf"
     }
 }
 

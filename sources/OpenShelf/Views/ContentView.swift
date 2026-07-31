@@ -1,16 +1,14 @@
 import AppKit
 import SwiftUI
-import UniformTypeIdentifiers
 
 struct ContentView: View {
     @ObservedObject var store: ShelfStore
+    @ObservedObject var dropState: ShelfDropState
     let onHoverChanged: (Bool) -> Void
     let onClose: () -> Void
     let onEmpty: () -> Void
     let onDragOutCompleted: () -> Void
-    let onDropTargetChanged: (Bool) -> Void
 
-    @State private var isDropTargeted = false
     @State private var selectedItemIDs: Set<ShelfItem.ID> = []
     @State private var lastSelectedItemID: ShelfItem.ID?
     @State private var reorderedItemIDs: Set<ShelfItem.ID> = []
@@ -32,11 +30,24 @@ struct ContentView: View {
         }
         .frame(width: 300, height: 200)
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay {
+            if dropState.isTargeted {
+                dropTargetCue
+            }
+        }
+        .overlay(alignment: .bottom) {
+            if let feedback = dropState.feedback {
+                dropFeedback(feedback)
+                    .padding(.bottom, 10)
+                    .transition(
+                        .move(edge: .bottom).combined(with: .opacity)
+                    )
+            }
+        }
+        .animation(.easeOut(duration: 0.16), value: dropState.isTargeted)
+        .animation(.easeOut(duration: 0.16), value: dropState.feedback)
         .onHover { isHovering in
             onHoverChanged(isHovering)
-        }
-        .onChange(of: isDropTargeted) { isTargeted in
-            onDropTargetChanged(isTargeted)
         }
         .onChange(of: store.items.isEmpty) { isEmpty in
             if isEmpty {
@@ -46,11 +57,8 @@ struct ContentView: View {
         .onChange(of: store.items.map(\.id)) { itemIDs in
             pruneSelection(validItemIDs: Set(itemIDs))
         }
-        .onDrop(
-            of: [UTType.fileURL.identifier],
-            isTargeted: $isDropTargeted
-        ) { providers in
-            handleDrop(providers)
+        .onChange(of: dropState.successfulDropGeneration) { _ in
+            clearSelection()
         }
     }
 
@@ -137,11 +145,11 @@ struct ContentView: View {
                     .foregroundStyle(.secondary)
             }
 
-            Text(isDropTargeted ? "Release to add files" : "Drop files here")
+            Text(dropState.isTargeted ? "Release to add content" : "Drop anything here")
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundStyle(.primary)
 
-            Text("Drag files to the screen edge")
+            Text("Files, images, text, or press ⌘V")
                 .font(.system(size: 12))
                 .foregroundStyle(.secondary)
 
@@ -152,7 +160,7 @@ struct ContentView: View {
             ZStack {
                 Color(nsColor: .windowBackgroundColor)
 
-                if isDropTargeted {
+                if dropState.isTargeted {
                     Color.accentColor.opacity(0.08)
                 }
             }
@@ -163,7 +171,7 @@ struct ContentView: View {
         ZStack(alignment: .topLeading) {
             Color(nsColor: .windowBackgroundColor)
 
-            if isDropTargeted {
+            if dropState.isTargeted {
                 Color.accentColor.opacity(0.08)
             }
 
@@ -300,82 +308,30 @@ struct ContentView: View {
         }
     }
 
-    private func handleDrop(_ providers: [NSItemProvider]) -> Bool {
-        if providers.contains(where: {
-            $0.hasItemConformingToTypeIdentifier(
-                shelfReorderPasteboardTypeIdentifier
+    private var dropTargetCue: some View {
+        Label("Drop to add", systemImage: "plus.circle.fill")
+            .font(.system(size: 13, weight: .semibold))
+            .foregroundStyle(Color.accentColor)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+            .background(.ultraThinMaterial, in: Capsule())
+            .shadow(color: .black.opacity(0.18), radius: 8, y: 3)
+            .allowsHitTesting(false)
+    }
+
+    private func dropFeedback(
+        _ feedback: ShelfDropState.Feedback
+    ) -> some View {
+        Label(feedback.message, systemImage: feedback.systemImage)
+            .font(.system(size: 12, weight: .semibold))
+            .foregroundStyle(
+                feedback.isError ? Color.red : Color.primary
             )
-        }) {
-            endReorder()
-            return true
-        }
-
-        let fileProviders = providers.filter {
-            $0.hasItemConformingToTypeIdentifier(
-                UTType.fileURL.identifier
-            )
-        }
-
-        guard !fileProviders.isEmpty else {
-            return false
-        }
-
-        clearSelection()
-
-        for provider in fileProviders {
-            provider.loadItem(
-                forTypeIdentifier: UTType.fileURL.identifier,
-                options: nil
-            ) { item, error in
-                if let error {
-                    print("Drop error:", error)
-                    return
-                }
-
-                let url: URL?
-
-                switch item {
-                case let value as URL:
-                    url = value
-
-                case let value as NSURL:
-                    url = value as URL
-
-                case let value as Data:
-                    url = URL(
-                        dataRepresentation: value,
-                        relativeTo: nil
-                    )
-
-                case let value as String:
-                    url = URL(string: value)
-
-                default:
-                    url = nil
-                }
-
-                guard let url else {
-                    print(
-                        "Unsupported dropped file representation:",
-                        String(describing: type(of: item))
-                    )
-                    return
-                }
-
-                let normalizedURL = url.standardizedFileURL
-
-                DispatchQueue.main.async {
-                    store.add(url: normalizedURL)
-
-                    print(
-                        "Added file to shelf:",
-                        normalizedURL.path
-                    )
-                }
-            }
-        }
-
-        return true
+            .padding(.horizontal, 12)
+            .padding(.vertical, 7)
+            .background(.ultraThinMaterial, in: Capsule())
+            .shadow(color: .black.opacity(0.16), radius: 7, y: 3)
+            .allowsHitTesting(false)
     }
 
     private func dragItems(for item: ShelfItem) -> [ShelfItem] {

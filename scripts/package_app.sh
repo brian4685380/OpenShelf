@@ -14,12 +14,12 @@ set -euo pipefail
 #
 # Usage:
 #   ./scripts/package_app.sh
-#   ./scripts/package_app.sh 0.4.1
+#   ./scripts/package_app.sh 0.5.0
 # ============================================================
 
 APP_NAME="OpenShelf"
 CLI_NAME="shelf"
-VERSION="${1:-0.4.1}"
+VERSION="${1:-0.5.0}"
 BUNDLE_IDENTIFIER="com.brianyuan.OpenShelf"
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -214,9 +214,10 @@ cask "openshelf" do
 
   url "https://github.com/brian4685380/OpenShelf/releases/download/v#{version}/OpenShelf-v#{version}-macOS.zip"
   name "OpenShelf"
-  desc "Lightweight file shelf for macOS"
+  desc "Lightweight file and content shelf"
   homepage "https://github.com/brian4685380/OpenShelf"
 
+  depends_on arch: :arm64
   depends_on macos: :ventura
 
   app "OpenShelf.app"
@@ -224,9 +225,7 @@ cask "openshelf" do
 
   uninstall quit: "com.brianyuan.OpenShelf"
 
-  zap trash: [
-    "~/Library/Preferences/com.brianyuan.OpenShelf.plist",
-  ]
+  zap trash: "~/Library/Preferences/com.brianyuan.OpenShelf.plist"
 end
 EOF
 

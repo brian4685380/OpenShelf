@@ -71,6 +71,14 @@ final class ShelfSelectionOverlayView: NSView {
     private let autoScrollMaxStep: CGFloat = 12
     private let autoScrollInterval: TimeInterval = 1.0 / 30.0
 
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+    }
+
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
     }

@@ -25,6 +25,11 @@ let package = Package(
             linkerSettings: [
                 .linkedFramework("AppKit"),
             ]
-        )
+        ),
+        .testTarget(
+            name: "OpenShelfTests",
+            dependencies: ["OpenShelf"],
+            path: "Tests/OpenShelfTests"
+        ),
     ]
 )

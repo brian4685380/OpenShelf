@@ -6,6 +6,7 @@ final class EdgeTriggerController {
     private var triggerPanels: [NSPanel] = []
 
     private let triggerWidth: CGFloat = 12
+    private let floatingWindowLevel = NSWindow.Level.screenSaver
 
     init(shelfController: FloatingShelfController) {
         self.shelfController = shelfController
@@ -104,7 +105,7 @@ final class EdgeTriggerController {
     }
 
     private func configureFloatingBehavior(for panel: NSPanel) {
-        panel.level = .statusBar
+        panel.level = floatingWindowLevel
         panel.isFloatingPanel = true
         panel.hidesOnDeactivate = false
         panel.collectionBehavior = [

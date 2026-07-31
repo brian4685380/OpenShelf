@@ -1,19 +1,29 @@
 import AppKit
+import Darwin
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let shelfController = FloatingShelfController()
     private var edgeTriggerController: EdgeTriggerController?
     private var commandReceiver: ShelfCommandReceiver?
+    private var floatingRefreshWorkItems: [DispatchWorkItem] = []
 
     private var statusItem: NSStatusItem?
+    private var instanceLockFileDescriptor: Int32 = -1
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        guard acquireSingleInstanceLock() else {
+            print("Another OpenShelf instance is already running.")
+            NSApp.terminate(nil)
+            return
+        }
+
         // Menu bar utility app.
         // This prevents OpenShelf from appearing as a normal Dock app.
         NSApp.setActivationPolicy(.accessory)
 
         setupMenuBarItem()
+        shelfController.preparePanel()
         commandReceiver = ShelfCommandReceiver(
             shelfController: shelfController
         )
@@ -31,8 +41,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        floatingRefreshWorkItems.forEach { $0.cancel() }
+        floatingRefreshWorkItems.removeAll()
         NSWorkspace.shared.notificationCenter.removeObserver(self)
         edgeTriggerController?.stop()
+
+        if instanceLockFileDescriptor >= 0 {
+            flock(instanceLockFileDescriptor, LOCK_UN)
+            close(instanceLockFileDescriptor)
+            instanceLockFileDescriptor = -1
+        }
     }
 
     func applicationDidChangeScreenParameters(_ notification: Notification) {
@@ -99,6 +117,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem = item
     }
 
+    private func acquireSingleInstanceLock() -> Bool {
+        let lockPath = FileManager.default.temporaryDirectory
+            .appendingPathComponent(
+                "com.brianyuan.OpenShelf.\(getuid()).lock"
+            )
+            .path
+        let descriptor = open(
+            lockPath,
+            O_CREAT | O_RDWR,
+            S_IRUSR | S_IWUSR
+        )
+
+        guard descriptor >= 0 else {
+            print("Could not create OpenShelf instance lock:", lockPath)
+            return false
+        }
+
+        guard flock(descriptor, LOCK_EX | LOCK_NB) == 0 else {
+            close(descriptor)
+            return false
+        }
+
+        instanceLockFileDescriptor = descriptor
+        return true
+    }
+
     private func observeWorkspaceChanges() {
         let notificationCenter = NSWorkspace.shared.notificationCenter
 
@@ -150,6 +194,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func refreshFloatingWindows() {
+        floatingRefreshWorkItems.forEach { $0.cancel() }
+        floatingRefreshWorkItems.removeAll()
+
+        refreshFloatingWindowsNow()
+
+        // A native fullscreen transition moves windows between Spaces
+        // asynchronously. Refresh a few times while that animation settles so
+        // the shelf and its edge triggers join the newly active fullscreen
+        // Space instead of remaining behind the fullscreen application.
+        for delay in [0.15, 0.45, 0.9] {
+            let workItem = DispatchWorkItem { [weak self] in
+                self?.refreshFloatingWindowsNow()
+            }
+
+            floatingRefreshWorkItems.append(workItem)
+            DispatchQueue.main.asyncAfter(
+                deadline: .now() + delay,
+                execute: workItem
+            )
+        }
+    }
+
+    private func refreshFloatingWindowsNow() {
         edgeTriggerController?.refresh()
         shelfController.refreshAlwaysOnTop()
     }

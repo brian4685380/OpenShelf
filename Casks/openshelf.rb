@@ -1,12 +1,13 @@
 cask "openshelf" do
-  version "0.4.1"
-  sha256 :no_check
+  version "0.5.0"
+  sha256 "ee3192155a7407f64af333650fa40c2690dd5502dbc20ff370d8ad7204fb43b5"
 
   url "https://github.com/brian4685380/OpenShelf/releases/download/v#{version}/OpenShelf-v#{version}-macOS.zip"
   name "OpenShelf"
-  desc "Lightweight file shelf for macOS"
+  desc "Lightweight file and content shelf"
   homepage "https://github.com/brian4685380/OpenShelf"
 
+  depends_on arch: :arm64
   depends_on macos: :ventura
 
   app "OpenShelf.app"
@@ -14,7 +15,5 @@ cask "openshelf" do
 
   uninstall quit: "com.brianyuan.OpenShelf"
 
-  zap trash: [
-    "~/Library/Preferences/com.brianyuan.OpenShelf.plist",
-  ]
+  zap trash: "~/Library/Preferences/com.brianyuan.OpenShelf.plist"
 end

@@ -1,26 +1,30 @@
 # OpenShelf
 
 <p align="center">
-  <strong>A lightweight, open-source file shelf for macOS.</strong>
+  <strong>A lightweight, open-source file and content shelf for macOS.</strong>
 </p>
 
 <p align="center">
-  Temporarily collect files, keep them within reach, and drag them wherever you need.
+  Temporarily collect files, images, and text, keep them within reach, and drag them wherever you need.
 </p>
 
 ---
 
 OpenShelf is a native macOS utility inspired by file-shelf applications such as DropShelf.
 
-Drag files to the left or right edge of the screen to reveal a floating shelf. Files placed on the shelf remain easily accessible while you work across applications, Desktops, and fullscreen spaces.
+Drag files or content to the left or right edge of the screen to reveal a floating shelf. When the shelf is already visible, drop new content anywhere over the panel. Items placed on the shelf remain easily accessible while you work across applications, Desktops, and fullscreen spaces.
 
-OpenShelf is designed to stay minimal: it runs quietly from the menu bar, uses native SwiftUI and AppKit components, and does not upload or modify your files unless you explicitly drag them somewhere.
+OpenShelf is designed to stay minimal: it runs quietly from the menu bar, uses native SwiftUI and AppKit components, and keeps everything local on your Mac.
 
 ## Features
 
-- Reveal the shelf by dragging files to either screen edge
+- Reveal the shelf by dragging files, images, selected text, or links to either screen edge
+- Drop new content anywhere over an already visible shelf without returning to the screen edge
 - Position the shelf near the location where the drag was triggered
 - Temporarily store references to files and folders
+- Drop images, selected text, and web links directly from a browser
+- See clear drop-target and success feedback when content is added
+- Paste files, images, or text from the clipboard with Command-V while the pointer is over the shelf
 - Select one or more shelf items
 - Drag multiple selected files from the shelf into Finder or other applications
 - Drag files back into the shelf
@@ -43,11 +47,14 @@ Moving files between Finder windows and applications often requires repeatedly n
 
 OpenShelf provides a temporary staging area:
 
-1. Drag files to the edge of the screen.
+1. Drag files to the edge of the screen, or directly onto a visible shelf.
 2. Keep them on the shelf while switching applications.
 3. Drag them to their destination when needed.
 
-The shelf stores references to the original files rather than creating its own copies.
+For files and folders, the shelf stores references to the originals. Images,
+text, and web links imported from another app are materialized as temporary
+local files so they can be previewed, opened, and dragged out like normal files.
+Temporary browser image files are preserved before the source app removes them.
 
 ## Installation
 
@@ -104,12 +111,12 @@ files.
 ## Requirements
 
 - macOS 13 or later
-- Apple Silicon or Intel Mac, depending on the provided release build
+- Apple Silicon Mac (the current release artifact is arm64)
 
 ## Usage
 
 1. Launch OpenShelf.
-2. Drag a file or folder to the left or right edge of the screen.
+2. Drag a file, folder, browser image, selected text, or web link to a screen edge, or directly onto the shelf when it is already visible.
 3. Drop it onto the shelf.
 4. Drag it from the shelf into Finder or another application when needed.
 
@@ -120,6 +127,7 @@ Shelf interactions:
 - Drag across the empty shelf area to select multiple rows, similar to Finder.
 - Drag selected rows out of the shelf to move multiple files at once.
 - Drag rows up or down inside the shelf to manually reorder them.
+- Hover over the shelf and press Command-V to add supported clipboard content.
 - Run `shelf <file-or-folder> [...]` from Terminal to add files directly.
 
 Additional actions are available from each item's context menu.
@@ -128,7 +136,10 @@ Additional actions are available from each item's context menu.
 
 OpenShelf is under active development.
 
-The current release supports the core shelf workflow, multi-selection, dragging multiple selected items, manual row reordering, adaptive light/dark appearance, Homebrew distribution, and DMG installation guidance.
+The current release supports the core shelf workflow, browser and clipboard
+content, multi-selection, dragging multiple selected items, manual row
+reordering, direct drops across the full visible shelf, adaptive light/dark
+appearance, Homebrew distribution, and DMG installation guidance.
 
 Bug reports, feature suggestions, and contributions are welcome.
 
@@ -165,7 +176,7 @@ To create the `.app`, `.zip`, and `.dmg` release artifacts:
 
 ```bash
 chmod +x scripts/package_app.sh
-./scripts/package_app.sh 0.4.1
+./scripts/package_app.sh 0.5.0
 ```
 
 The first packaging run creates a local virtual environment under `.build/`
@@ -178,8 +189,8 @@ Generated files will be placed in:
 dist/
 ├── OpenShelf.app
 ├── shelf
-├── OpenShelf-v0.4.1-macOS.zip
-├── OpenShelf-v0.4.1-macOS.dmg
+├── OpenShelf-v0.5.0-macOS.zip
+├── OpenShelf-v0.5.0-macOS.dmg
 └── openshelf.rb
 ```
 
@@ -191,7 +202,7 @@ OpenShelf.app/Contents/MacOS/shelf
 ```
 
 The generated `dist/openshelf.rb` file contains the release ZIP checksum. After
-uploading `OpenShelf-v0.4.1-macOS.zip` to the matching GitHub release, copy the
+uploading `OpenShelf-v0.5.0-macOS.zip` to the matching GitHub release, copy the
 generated cask into the Homebrew tap:
 
 ```bash
@@ -199,7 +210,7 @@ cp dist/openshelf.rb /opt/homebrew/Library/Taps/brian4685380/homebrew-openshelf/
 
 cd /opt/homebrew/Library/Taps/brian4685380/homebrew-openshelf
 git add Casks/openshelf.rb
-git commit -m "Update OpenShelf to 0.4.1"
+git commit -m "Update OpenShelf to 0.5.0"
 git push
 ```
 
