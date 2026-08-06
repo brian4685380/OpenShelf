@@ -78,9 +78,65 @@ final class FloatingShelfControllerTests: XCTestCase {
             capturePanel.contentView as? VisibleShelfDropCaptureView
         )
         XCTAssertEqual(capturePanel.frame, panel.frame)
-        XCTAssertEqual(capturePanel.level, .floating)
-        XCTAssertLessThan(capturePanel.level.rawValue, panel.level.rawValue)
+        XCTAssertEqual(capturePanel.level, .screenSaver)
+        XCTAssertEqual(capturePanel.level, panel.level)
+        XCTAssertTrue(capturePanel.collectionBehavior.contains(.stationary))
         XCTAssertTrue(captureView.registeredDraggedTypes.contains(.fileURL))
+    }
+
+    func testEdgeTriggersUseInteractiveAllSpacesConfiguration() throws {
+        _ = NSApplication.shared
+        let shelfController = FloatingShelfController()
+        let triggerController = EdgeTriggerController(
+            shelfController: shelfController
+        )
+        triggerController.start()
+        defer { triggerController.stop() }
+
+        let triggerPanels = visibleEdgeTriggerPanels()
+
+        XCTAssertEqual(triggerPanels.count, NSScreen.screens.count * 2)
+
+        for panel in triggerPanels {
+            XCTAssertEqual(panel.level, .floating)
+            XCTAssertTrue(panel.collectionBehavior.contains(.canJoinAllSpaces))
+            XCTAssertTrue(panel.collectionBehavior.contains(.stationary))
+        }
+    }
+
+    func testEdgeTriggerRefreshRestoresGlobalLevelAfterWindowSwitch() {
+        _ = NSApplication.shared
+        let shelfController = FloatingShelfController()
+        var canReorderWindows = true
+        let triggerController = EdgeTriggerController(
+            shelfController: shelfController,
+            canReorderWindows: { canReorderWindows }
+        )
+        triggerController.start()
+        defer { triggerController.stop() }
+
+        let triggerPanels = visibleEdgeTriggerPanels()
+        XCTAssertFalse(triggerPanels.isEmpty)
+
+        for panel in triggerPanels {
+            panel.level = .normal
+        }
+
+        canReorderWindows = false
+        triggerController.refresh()
+
+        for panel in triggerPanels {
+            XCTAssertEqual(panel.level, .normal)
+        }
+
+        canReorderWindows = true
+        triggerController.refresh()
+
+        for panel in triggerPanels {
+            XCTAssertEqual(panel.level, .floating)
+            XCTAssertTrue(panel.isVisible)
+            XCTAssertTrue(panel.collectionBehavior.contains(.stationary))
+        }
     }
 
     func testHoverMakesShelfKeyForCommandVPaste() throws {
@@ -460,6 +516,18 @@ final class FloatingShelfControllerTests: XCTestCase {
     private func openShelfPanel() -> NSWindow? {
         NSApp.windows.first { window in
             window.title == "OpenShelf" && window.isVisible
+        }
+    }
+
+    private func visibleEdgeTriggerPanels() -> [NSPanel] {
+        NSApp.windows.compactMap { window -> NSPanel? in
+            guard window.isVisible,
+                window.contentView is EdgeTriggerView
+            else {
+                return nil
+            }
+
+            return window as? NSPanel
         }
     }
 

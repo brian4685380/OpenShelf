@@ -137,7 +137,6 @@ final class FloatingShelfController {
         // of those refreshes can otherwise reorder this destination window in
         // the middle of the drag and hand the eventual drop to the app below.
         guard !isExternalDragActive, !isPrimaryMouseButtonPressed else {
-            print("Skipped shelf window refresh during active drag.")
             return
         }
 
@@ -389,8 +388,11 @@ final class FloatingShelfController {
     }
 
     private func configureFloatingBehavior(for panel: NSPanel) {
-        panel.level = floatingWindowLevel
         panel.isFloatingPanel = true
+        // Setting isFloatingPanel can reset a generic NSPanel to .floating.
+        // Assign the intended overlay level afterwards so it remains above
+        // newly activated windows and Stage Manager window sets.
+        panel.level = floatingWindowLevel
         panel.hidesOnDeactivate = false
         panel.collectionBehavior = [
             .canJoinAllSpaces,

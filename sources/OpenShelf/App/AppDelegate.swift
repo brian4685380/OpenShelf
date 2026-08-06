@@ -7,6 +7,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var edgeTriggerController: EdgeTriggerController?
     private var commandReceiver: ShelfCommandReceiver?
     private var floatingRefreshWorkItems: [DispatchWorkItem] = []
+    private var floatingWindowMaintenanceTimer: Timer?
+    private var globalMouseUpMonitor: Any?
 
     private var statusItem: NSStatusItem?
     private var instanceLockFileDescriptor: Int32 = -1
@@ -35,6 +37,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         triggerController.start()
         edgeTriggerController = triggerController
         observeWorkspaceChanges()
+        startFloatingWindowMaintenance()
 
         print("OpenShelf is running as a menu bar app.")
         print("Drag a file to the left or right edge of the screen.")
@@ -43,6 +46,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillTerminate(_ notification: Notification) {
         floatingRefreshWorkItems.forEach { $0.cancel() }
         floatingRefreshWorkItems.removeAll()
+        stopFloatingWindowMaintenance()
         NSWorkspace.shared.notificationCenter.removeObserver(self)
         edgeTriggerController?.stop()
 
@@ -161,6 +165,41 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
     }
 
+    private func startFloatingWindowMaintenance() {
+        stopFloatingWindowMaintenance()
+
+        let timer = Timer(
+            timeInterval: 0.35,
+            target: self,
+            selector: #selector(maintainFloatingWindows),
+            userInfo: nil,
+            repeats: true
+        )
+        RunLoop.main.add(timer, forMode: .common)
+        floatingWindowMaintenanceTimer = timer
+
+        // NSWorkspace reports application and Space changes, but not a new
+        // foreground window or tab inside the same application. Refresh as
+        // soon as a click that may have changed that foreground surface ends.
+        globalMouseUpMonitor = NSEvent.addGlobalMonitorForEvents(
+            matching: [.leftMouseUp, .rightMouseUp, .otherMouseUp]
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.refreshEdgeTriggersNow()
+            }
+        }
+    }
+
+    private func stopFloatingWindowMaintenance() {
+        floatingWindowMaintenanceTimer?.invalidate()
+        floatingWindowMaintenanceTimer = nil
+
+        if let globalMouseUpMonitor {
+            NSEvent.removeMonitor(globalMouseUpMonitor)
+            self.globalMouseUpMonitor = nil
+        }
+    }
+
     private func menuBarIcon() -> NSImage? {
         let bundledIconURLs = [
             Bundle.main.url(forResource: "AppIcon", withExtension: "png"),
@@ -216,9 +255,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    @objc private func maintainFloatingWindows() {
+        refreshEdgeTriggersNow()
+    }
+
     private func refreshFloatingWindowsNow() {
-        edgeTriggerController?.refresh()
+        refreshEdgeTriggersNow()
         shelfController.refreshAlwaysOnTop()
+    }
+
+    private func refreshEdgeTriggersNow() {
+        edgeTriggerController?.refresh()
     }
 
     @objc private func installCLITool() {

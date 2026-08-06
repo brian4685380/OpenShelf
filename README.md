@@ -36,6 +36,7 @@ OpenShelf is designed to stay minimal: it runs quietly from the menu bar, uses n
 - Remove individual items or clear the entire shelf
 - Automatically remove entries when their original files no longer exist
 - Collapse into a slim screen-edge tab when not in use
+- Stay triggerable after switching applications, windows, or tabs
 - Remain available across macOS Desktops and fullscreen applications
 - Native menu bar integration
 - Lightweight native macOS implementation
@@ -139,7 +140,8 @@ OpenShelf is under active development.
 The current release supports the core shelf workflow, browser and clipboard
 content, multi-selection, dragging multiple selected items, manual row
 reordering, direct drops across the full visible shelf, adaptive light/dark
-appearance, Homebrew distribution, and DMG installation guidance.
+appearance, reliable cross-window edge triggers, Homebrew distribution, and
+DMG installation guidance.
 
 Bug reports, feature suggestions, and contributions are welcome.
 
@@ -176,7 +178,7 @@ To create the `.app`, `.zip`, and `.dmg` release artifacts:
 
 ```bash
 chmod +x scripts/package_app.sh
-./scripts/package_app.sh 0.5.0
+./scripts/package_app.sh 0.5.1
 ```
 
 The first packaging run creates a local virtual environment under `.build/`
@@ -189,8 +191,8 @@ Generated files will be placed in:
 dist/
 ├── OpenShelf.app
 ├── shelf
-├── OpenShelf-v0.5.0-macOS.zip
-├── OpenShelf-v0.5.0-macOS.dmg
+├── OpenShelf-v0.5.1-macOS.zip
+├── OpenShelf-v0.5.1-macOS.dmg
 └── openshelf.rb
 ```
 
@@ -202,7 +204,7 @@ OpenShelf.app/Contents/MacOS/shelf
 ```
 
 The generated `dist/openshelf.rb` file contains the release ZIP checksum. After
-uploading `OpenShelf-v0.5.0-macOS.zip` to the matching GitHub release, copy the
+uploading `OpenShelf-v0.5.1-macOS.zip` to the matching GitHub release, copy the
 generated cask into the Homebrew tap:
 
 ```bash
@@ -210,7 +212,7 @@ cp dist/openshelf.rb /opt/homebrew/Library/Taps/brian4685380/homebrew-openshelf/
 
 cd /opt/homebrew/Library/Taps/brian4685380/homebrew-openshelf
 git add Casks/openshelf.rb
-git commit -m "Update OpenShelf to 0.5.0"
+git commit -m "Update OpenShelf to 0.5.1"
 git push
 ```
 
