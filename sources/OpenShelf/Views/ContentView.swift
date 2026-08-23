@@ -4,16 +4,35 @@ import SwiftUI
 struct ContentView: View {
     @ObservedObject var store: ShelfStore
     @ObservedObject var dropState: ShelfDropState
+    @StateObject private var selection: ShelfSelectionModel
     let onHoverChanged: (Bool) -> Void
     let onClose: () -> Void
     let onEmpty: () -> Void
     let onDragOutCompleted: () -> Void
 
-    @State private var selectedItemIDs: Set<ShelfItem.ID> = []
-    @State private var lastSelectedItemID: ShelfItem.ID?
     @State private var reorderedItemIDs: Set<ShelfItem.ID> = []
     @State private var insertionIndicator: ShelfInsertionIndicator?
     @State private var rowFrames: [ShelfItem.ID: CGRect] = [:]
+
+    init(
+        store: ShelfStore,
+        dropState: ShelfDropState,
+        selection: ShelfSelectionModel? = nil,
+        onHoverChanged: @escaping (Bool) -> Void,
+        onClose: @escaping () -> Void,
+        onEmpty: @escaping () -> Void,
+        onDragOutCompleted: @escaping () -> Void
+    ) {
+        self.store = store
+        self.dropState = dropState
+        _selection = StateObject(
+            wrappedValue: selection ?? ShelfSelectionModel()
+        )
+        self.onHoverChanged = onHoverChanged
+        self.onClose = onClose
+        self.onEmpty = onEmpty
+        self.onDragOutCompleted = onDragOutCompleted
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -55,7 +74,8 @@ struct ContentView: View {
             }
         }
         .onChange(of: store.items.map(\.id)) { itemIDs in
-            pruneSelection(validItemIDs: Set(itemIDs))
+            selection.prune(to: store.items)
+            reorderedItemIDs.formIntersection(itemIDs)
         }
         .onChange(of: dropState.successfulDropGeneration) { _ in
             clearSelection()
@@ -127,7 +147,7 @@ struct ContentView: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
         .background(
-            Color(nsColor: .windowBackgroundColor)
+            Color(nsColor: ShelfAppearance.backgroundColor)
         )
     }
 
@@ -158,7 +178,7 @@ struct ContentView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background {
             ZStack {
-                Color(nsColor: .windowBackgroundColor)
+                Color(nsColor: ShelfAppearance.backgroundColor)
 
                 if dropState.isTargeted {
                     Color.accentColor.opacity(0.08)
@@ -169,7 +189,7 @@ struct ContentView: View {
 
     private var itemList: some View {
         ZStack(alignment: .topLeading) {
-            Color(nsColor: .windowBackgroundColor)
+            Color(nsColor: ShelfAppearance.backgroundColor)
 
             if dropState.isTargeted {
                 Color.accentColor.opacity(0.08)
@@ -180,7 +200,7 @@ struct ContentView: View {
                     ForEach(store.items) { item in
                         ShelfRow(
                             item: item,
-                            isSelected: selectedItemIDs.contains(item.id),
+                            isSelected: selection.itemIDs.contains(item.id),
                             insertionPlacement: insertionPlacement(for: item),
                             dragItems: dragItems(for: item),
                             onDragStarted: {
@@ -199,7 +219,7 @@ struct ContentView: View {
 
                                 store.remove(draggedItems)
 
-                                selectedItemIDs.subtract(
+                                selection.subtract(
                                     draggedItems.map(\.id)
                                 )
 
@@ -251,7 +271,7 @@ struct ContentView: View {
 
                                 store.remove(items)
 
-                                selectedItemIDs.subtract(
+                                selection.subtract(
                                     items.map(\.id)
                                 )
                             }
@@ -286,13 +306,15 @@ struct ContentView: View {
             ShelfSelectionOverlay(
                 rowFrames: rowFrames,
                 rowOrder: store.items.map(\.id),
-                selectedItemIDs: selectedItemIDs,
+                selectedItemIDs: selection.itemIDs,
                 onClearSelection: {
                     clearSelection()
                 },
                 onSelectionChanged: { itemIDs, lastItemID in
-                    selectedItemIDs = itemIDs
-                    lastSelectedItemID = lastItemID
+                    selection.replace(
+                        with: itemIDs,
+                        anchorItemID: lastItemID
+                    )
                 }
             )
             .frame(
@@ -335,27 +357,11 @@ struct ContentView: View {
     }
 
     private func dragItems(for item: ShelfItem) -> [ShelfItem] {
-        guard selectedItemIDs.contains(item.id) else {
-            return [item]
-        }
-
-        let selectedItems = store.items.filter {
-            selectedItemIDs.contains($0.id)
-        }
-
-        return selectedItems.isEmpty ? [item] : selectedItems
+        selection.resolvedItems(for: item, in: store.items)
     }
 
     private func actionItems(for item: ShelfItem) -> [ShelfItem] {
-        guard selectedItemIDs.contains(item.id) else {
-            return [item]
-        }
-
-        let selectedItems = store.items.filter {
-            selectedItemIDs.contains($0.id)
-        }
-
-        return selectedItems.isEmpty ? [item] : selectedItems
+        selection.resolvedItems(for: item, in: store.items)
     }
 
     private func beginReorder(for item: ShelfItem) {
@@ -364,9 +370,8 @@ struct ContentView: View {
         let items = actionItems(for: item)
         reorderedItemIDs = Set(items.map(\.id))
 
-        if !selectedItemIDs.contains(item.id) {
-            selectedItemIDs = [item.id]
-            lastSelectedItemID = item.id
+        if !selection.itemIDs.contains(item.id) {
+            selection.selectOnly(item)
         }
     }
 
@@ -432,69 +437,16 @@ struct ContentView: View {
         for item: ShelfItem,
         modifiers: NSEvent.ModifierFlags
     ) {
-        if modifiers.contains(.shift),
-            let lastSelectedItemID,
-            let anchorIndex = store.items.firstIndex(where: {
-                $0.id == lastSelectedItemID
-            }),
-            let currentIndex = store.items.firstIndex(of: item)
-        {
-            let range =
-                anchorIndex <= currentIndex
-                ? anchorIndex...currentIndex
-                : currentIndex...anchorIndex
-            let rangeIDs = Set(store.items[range].map(\.id))
-
-            if modifiers.contains(.command) {
-                selectedItemIDs.formUnion(rangeIDs)
-            } else {
-                selectedItemIDs = rangeIDs
-            }
-
-            return
-        }
-
-        if modifiers.contains(.command) {
-            if selectedItemIDs.contains(item.id) {
-                selectedItemIDs.remove(item.id)
-
-                if lastSelectedItemID == item.id {
-                    lastSelectedItemID = selectedItemIDs.first
-                }
-            } else {
-                selectedItemIDs.insert(item.id)
-                lastSelectedItemID = item.id
-            }
-
-            return
-        }
-
-        if selectedItemIDs.contains(item.id),
-            selectedItemIDs.count > 1
-        {
-            lastSelectedItemID = item.id
-            return
-        }
-
-        selectedItemIDs = [item.id]
-        lastSelectedItemID = item.id
+        selection.handleClick(
+            on: item,
+            in: store.items,
+            modifiers: modifiers
+        )
     }
 
     private func clearSelection() {
-        selectedItemIDs = []
-        lastSelectedItemID = nil
+        selection.clear()
         endReorder()
-    }
-
-    private func pruneSelection(validItemIDs: Set<ShelfItem.ID>) {
-        selectedItemIDs.formIntersection(validItemIDs)
-        reorderedItemIDs.formIntersection(validItemIDs)
-
-        if let lastSelectedItemID,
-            !validItemIDs.contains(lastSelectedItemID)
-        {
-            self.lastSelectedItemID = selectedItemIDs.first
-        }
     }
 
 }

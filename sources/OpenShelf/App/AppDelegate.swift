@@ -185,7 +185,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             matching: [.leftMouseUp, .rightMouseUp, .otherMouseUp]
         ) { [weak self] _ in
             Task { @MainActor [weak self] in
-                self?.refreshEdgeTriggersNow()
+                self?.refreshFloatingWindowsNow()
             }
         }
     }
@@ -200,7 +200,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    private func menuBarIcon() -> NSImage? {
+    func menuBarIcon() -> NSImage? {
         let bundledIconURLs = [
             Bundle.main.url(forResource: "AppIcon", withExtension: "png"),
             Bundle.main.url(forResource: "AppIcon", withExtension: "icns"),

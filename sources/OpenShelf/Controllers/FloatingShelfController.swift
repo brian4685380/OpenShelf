@@ -5,6 +5,8 @@ import SwiftUI
 final class FloatingShelfController {
     private let store = ShelfStore()
     private let dropState = ShelfDropState()
+    private let makePanelKey: @MainActor (NSPanel) -> Void
+    private let primaryMouseButtonPressed: @MainActor () -> Bool
 
     private var panel: NSPanel?
     private var visibleDropCapturePanel: NSPanel?
@@ -25,7 +27,31 @@ final class FloatingShelfController {
     private let visibleTabWidth: CGFloat = 32
     private let screenPadding: CGFloat = 8
     private let animationDuration: TimeInterval = 0.22
-    private let floatingWindowLevel = NSWindow.Level.screenSaver
+    // Finder does not reliably route cross-process drag destinations to
+    // windows at .screenSaver. The edge trigger already uses .floating for
+    // this reason; keep the visible shelf at the same interactive level so a
+    // file can be dropped anywhere on an already-expanded shelf without first
+    // visiting the screen edge.
+    private let interactiveWindowLevel = NSWindow.Level.floating
+
+    init(
+        makePanelKey: @escaping @MainActor (NSPanel) -> Void = {
+            $0.makeKeyAndOrderFront(nil)
+        },
+        primaryMouseButtonPressed: @escaping @MainActor () -> Bool = {
+            if NSEvent.pressedMouseButtons & 1 != 0 {
+                return true
+            }
+
+            return CGEventSource.buttonState(
+                .combinedSessionState,
+                button: .left
+            )
+        }
+    ) {
+        self.makePanelKey = makePanelKey
+        self.primaryMouseButtonPressed = primaryMouseButtonPressed
+    }
 
     func preparePanel() {
         guard panel == nil else {
@@ -67,7 +93,7 @@ final class FloatingShelfController {
             on: currentScreen,
             edge: currentEdge
         )
-        panel.level = floatingWindowLevel
+        panel.level = interactiveWindowLevel
         panel.setFrame(expandedFrame, display: true)
         panel.orderFrontRegardless()
         showVisibleDropCapture(below: panel, frame: expandedFrame)
@@ -101,7 +127,7 @@ final class FloatingShelfController {
         guard isShelfPresented, let panel else { return }
         isCollapsed = false
         let expanded = frameForExpandedState(on: currentScreen, edge: currentEdge)
-        panel.level = floatingWindowLevel
+        panel.level = interactiveWindowLevel
         showVisibleDropCapture(below: panel, frame: expanded)
         animate(panel: panel, to: expanded)
     }
@@ -381,7 +407,7 @@ final class FloatingShelfController {
             return
         }
 
-        panel.level = floatingWindowLevel
+        panel.level = interactiveWindowLevel
         configureFloatingBehavior(for: capturePanel)
         capturePanel.setFrame(frame, display: false)
         capturePanel.order(.below, relativeTo: panel.windowNumber)
@@ -389,10 +415,10 @@ final class FloatingShelfController {
 
     private func configureFloatingBehavior(for panel: NSPanel) {
         panel.isFloatingPanel = true
-        // Setting isFloatingPanel can reset a generic NSPanel to .floating.
-        // Assign the intended overlay level afterwards so it remains above
-        // newly activated windows and Stage Manager window sets.
-        panel.level = floatingWindowLevel
+        // Setting isFloatingPanel can reset the level. Keep this destination
+        // at AppKit's interactive floating level; orderFrontRegardless() and
+        // foreground refreshes keep it above normal application windows.
+        panel.level = interactiveWindowLevel
         panel.hidesOnDeactivate = false
         panel.collectionBehavior = [
             .canJoinAllSpaces,
@@ -412,7 +438,7 @@ final class FloatingShelfController {
             // The panel is already at the floating level. Reordering a drag
             // destination window here makes AppKit emit a synthetic drag exit
             // and re-entry while the cursor has not moved.
-            panel.level = floatingWindowLevel
+            panel.level = interactiveWindowLevel
 
             // Wait briefly before taking key focus for Command-V. The hosting
             // view gets draggingEntered during this interval and cancels the
@@ -517,7 +543,7 @@ final class FloatingShelfController {
                     return
                 }
 
-                panel.makeKeyAndOrderFront(nil)
+                self.makePanelKey(panel)
             }
         }
 
@@ -529,18 +555,11 @@ final class FloatingShelfController {
     }
 
     private var isPrimaryMouseButtonPressed: Bool {
-        if NSEvent.pressedMouseButtons & 1 != 0 {
-            return true
-        }
-
         // During a drag owned by Finder or another application, AppKit's
         // process-local pressedMouseButtons value can be stale. Query the
         // combined macOS session so hovering the shelf cannot steal key focus
         // and cancel the external drag before SwiftUI receives it.
-        return CGEventSource.buttonState(
-            .combinedSessionState,
-            button: .left
-        )
+        primaryMouseButtonPressed()
     }
 
     private func cancelPendingKeyFocus() {
@@ -566,7 +585,7 @@ final class FloatingShelfController {
             edge: currentEdge
         )
 
-        panel.level = floatingWindowLevel
+        panel.level = interactiveWindowLevel
         showVisibleDropCapture(below: panel, frame: expandedFrame)
 
         NSAnimationContext.runAnimationGroup { context in
@@ -656,7 +675,7 @@ final class FloatingShelfController {
                     return
                 }
 
-                panel.level = self.floatingWindowLevel
+                panel.level = self.interactiveWindowLevel
                 panel.orderFrontRegardless()
 
                 print(

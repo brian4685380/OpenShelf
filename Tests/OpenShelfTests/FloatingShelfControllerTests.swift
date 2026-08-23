@@ -40,7 +40,7 @@ final class FloatingShelfControllerTests: XCTestCase {
         let panel = try XCTUnwrap(openShelfPanel() as? ShelfPanel)
         let shelfPanel = panel
 
-        XCTAssertEqual(panel.level, .screenSaver)
+        XCTAssertEqual(panel.level, .floating)
         XCTAssertTrue(panel.isFloatingPanel)
         XCTAssertFalse(panel.hidesOnDeactivate)
         XCTAssertTrue(panel.collectionBehavior.contains(.canJoinAllSpaces))
@@ -78,10 +78,161 @@ final class FloatingShelfControllerTests: XCTestCase {
             capturePanel.contentView as? VisibleShelfDropCaptureView
         )
         XCTAssertEqual(capturePanel.frame, panel.frame)
-        XCTAssertEqual(capturePanel.level, .screenSaver)
+        XCTAssertEqual(capturePanel.level, .floating)
         XCTAssertEqual(capturePanel.level, panel.level)
         XCTAssertTrue(capturePanel.collectionBehavior.contains(.stationary))
         XCTAssertTrue(captureView.registeredDraggedTypes.contains(.fileURL))
+    }
+
+    func testShelfUsesRequestedEdgeAndVerticalTriggerPosition() throws {
+        _ = NSApplication.shared
+        let screen = try XCTUnwrap(NSScreen.main ?? NSScreen.screens.first)
+        let controller = FloatingShelfController(
+            primaryMouseButtonPressed: { false }
+        )
+        defer { controller.closeShelf() }
+        let desiredCenterY = screen.visibleFrame.midY + 35
+
+        controller.show(
+            on: screen,
+            edge: .left,
+            triggerY: desiredCenterY
+        )
+        let panel = try XCTUnwrap(openShelfPanel())
+
+        XCTAssertEqual(
+            panel.frame.minX,
+            screen.visibleFrame.minX + 8,
+            accuracy: 0.5
+        )
+        XCTAssertEqual(panel.frame.midY, desiredCenterY, accuracy: 0.5)
+
+        controller.show(
+            on: screen,
+            edge: .right,
+            triggerY: desiredCenterY
+        )
+
+        XCTAssertEqual(
+            panel.frame.maxX,
+            screen.visibleFrame.maxX - 8,
+            accuracy: 0.5
+        )
+        XCTAssertEqual(panel.frame.midY, desiredCenterY, accuracy: 0.5)
+    }
+
+    func testIdleShelfCollapsesToTabAndExpandsAgain() throws {
+        _ = NSApplication.shared
+        let screen = try XCTUnwrap(NSScreen.main ?? NSScreen.screens.first)
+        let controller = FloatingShelfController(
+            primaryMouseButtonPressed: { false }
+        )
+        let testEdge: ShelfEdge =
+            NSEvent.mouseLocation.x >= screen.frame.midX ? .left : .right
+        controller.show(on: screen, edge: testEdge)
+        defer { controller.closeShelf() }
+        let panel = try XCTUnwrap(openShelfPanel())
+        let dropContainer = try XCTUnwrap(
+            panel.contentView as? ShelfDropContainerView<ContentView>
+        )
+
+        // Keep this controller-timing test independent of the real cursor's
+        // position while XCTest is driving an on-screen AppKit window.
+        panel.ignoresMouseEvents = true
+        dropContainer.rootView.onHoverChanged(false)
+
+        controller.collapse()
+        waitForAnimation()
+
+        switch testEdge {
+        case .left:
+            XCTAssertEqual(
+                panel.frame.maxX,
+                screen.visibleFrame.minX + 32,
+                accuracy: 1
+            )
+        case .right:
+            XCTAssertEqual(
+                panel.frame.minX,
+                screen.visibleFrame.maxX - 32,
+                accuracy: 1
+            )
+        }
+
+        controller.expand()
+        waitForAnimation()
+
+        switch testEdge {
+        case .left:
+            XCTAssertEqual(
+                panel.frame.minX,
+                screen.visibleFrame.minX + 8,
+                accuracy: 1
+            )
+        case .right:
+            XCTAssertEqual(
+                panel.frame.maxX,
+                screen.visibleFrame.maxX - 8,
+                accuracy: 1
+            )
+        }
+    }
+
+    func testAlwaysOnTopRefreshRestoresPanelAndCaptureConfiguration() throws {
+        _ = NSApplication.shared
+        let controller = FloatingShelfController(
+            primaryMouseButtonPressed: { false }
+        )
+        controller.show()
+        defer { controller.closeShelf() }
+
+        let panel = try XCTUnwrap(openShelfPanel() as? ShelfPanel)
+        let capturePanel = try XCTUnwrap(
+            NSApp.windows.first {
+                $0.title == "OpenShelf Drop Capture" && $0.isVisible
+            }
+        )
+        panel.level = .normal
+        capturePanel.level = .normal
+
+        controller.refreshAlwaysOnTop()
+
+        XCTAssertEqual(panel.level, .floating)
+        XCTAssertEqual(capturePanel.level, .floating)
+        XCTAssertTrue(panel.isVisible)
+        XCTAssertTrue(capturePanel.isVisible)
+        XCTAssertTrue(panel.collectionBehavior.contains(.canJoinAllSpaces))
+        XCTAssertTrue(panel.collectionBehavior.contains(.fullScreenAuxiliary))
+    }
+
+    func testAlwaysOnTopRefreshDoesNotRetargetAnActiveFinderDrag() throws {
+        _ = NSApplication.shared
+        var mouseButtonPressed = true
+        let controller = FloatingShelfController(
+            primaryMouseButtonPressed: { mouseButtonPressed }
+        )
+        controller.show()
+        defer { controller.closeShelf() }
+
+        let panel = try XCTUnwrap(openShelfPanel() as? ShelfPanel)
+        let capturePanel = try XCTUnwrap(
+            NSApp.windows.first {
+                $0.title == "OpenShelf Drop Capture" && $0.isVisible
+            }
+        )
+        panel.level = .normal
+        capturePanel.level = .normal
+
+        controller.refreshAlwaysOnTop()
+
+        XCTAssertEqual(panel.level, .normal)
+        XCTAssertEqual(capturePanel.level, .normal)
+
+        mouseButtonPressed = false
+        controller.refreshAlwaysOnTop()
+
+        XCTAssertEqual(panel.level, .floating)
+        XCTAssertEqual(capturePanel.level, .floating)
     }
 
     func testEdgeTriggersUseInteractiveAllSpacesConfiguration() throws {
@@ -141,7 +292,13 @@ final class FloatingShelfControllerTests: XCTestCase {
 
     func testHoverMakesShelfKeyForCommandVPaste() throws {
         _ = NSApplication.shared
-        let controller = FloatingShelfController()
+        var panelAskedToBecomeKey: NSPanel?
+        let controller = FloatingShelfController(
+            makePanelKey: { panel in
+                panelAskedToBecomeKey = panel
+            },
+            primaryMouseButtonPressed: { false }
+        )
         controller.show()
         defer { controller.closeShelf() }
 
@@ -150,6 +307,7 @@ final class FloatingShelfControllerTests: XCTestCase {
             panel.contentView as? ShelfDropContainerView<ContentView>
         )
         XCTAssertFalse(panel.becomesKeyOnlyIfNeeded)
+        XCTAssertTrue(panel.canBecomeKey)
 
         dropContainer.rootView.onHoverChanged(true)
 
@@ -161,7 +319,7 @@ final class FloatingShelfControllerTests: XCTestCase {
         }
         wait(for: [focusSettled], timeout: 1)
 
-        XCTAssertTrue(panel.isKeyWindow)
+        XCTAssertTrue(panelAskedToBecomeKey === panel)
     }
 
     func testEdgeTriggerRegistersFilesImagesTextAndPromises() throws {
@@ -529,6 +687,14 @@ final class FloatingShelfControllerTests: XCTestCase {
 
             return window as? NSPanel
         }
+    }
+
+    private func waitForAnimation() {
+        let animationSettled = expectation(description: "animation settled")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+            animationSettled.fulfill()
+        }
+        wait(for: [animationSettled], timeout: 1)
     }
 
 }

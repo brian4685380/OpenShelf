@@ -162,7 +162,11 @@ struct ShelfRow: View {
 
     private var rowBackgroundColor: Color {
         if isSelected {
-            return Color.accentColor.opacity(isHovering ? 0.48 : 0.38)
+            return Color.accentColor.opacity(
+                isHovering
+                    ? ShelfAppearance.selectedHoveredRowOpacity
+                    : ShelfAppearance.selectedRowOpacity
+            )
         }
 
         if isHovering {

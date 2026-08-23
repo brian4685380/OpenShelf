@@ -143,6 +143,12 @@ reordering, direct drops across the full visible shelf, adaptive light/dark
 appearance, reliable cross-window edge triggers, Homebrew distribution, and
 DMG installation guidance.
 
+Version 0.6.0 makes an already-visible shelf a reliable native Finder drop
+destination, including consecutive drops that never visit a screen edge. It
+also strengthens Finder-style selection, reordering, scrolling, window, CLI,
+clipboard, appearance, and packaging behavior with a comprehensive automated
+regression suite and release-artifact verification.
+
 Bug reports, feature suggestions, and contributions are welcome.
 
 ## Build from Source
@@ -178,7 +184,7 @@ To create the `.app`, `.zip`, and `.dmg` release artifacts:
 
 ```bash
 chmod +x scripts/package_app.sh
-./scripts/package_app.sh 0.5.1
+./scripts/package_app.sh 0.6.0
 ```
 
 The first packaging run creates a local virtual environment under `.build/`
@@ -191,8 +197,8 @@ Generated files will be placed in:
 dist/
 ├── OpenShelf.app
 ├── shelf
-├── OpenShelf-v0.5.1-macOS.zip
-├── OpenShelf-v0.5.1-macOS.dmg
+├── OpenShelf-v0.6.0-macOS.zip
+├── OpenShelf-v0.6.0-macOS.dmg
 └── openshelf.rb
 ```
 
@@ -204,7 +210,7 @@ OpenShelf.app/Contents/MacOS/shelf
 ```
 
 The generated `dist/openshelf.rb` file contains the release ZIP checksum. After
-uploading `OpenShelf-v0.5.1-macOS.zip` to the matching GitHub release, copy the
+uploading `OpenShelf-v0.6.0-macOS.zip` to the matching GitHub release, copy the
 generated cask into the Homebrew tap:
 
 ```bash
@@ -212,7 +218,7 @@ cp dist/openshelf.rb /opt/homebrew/Library/Taps/brian4685380/homebrew-openshelf/
 
 cd /opt/homebrew/Library/Taps/brian4685380/homebrew-openshelf
 git add Casks/openshelf.rb
-git commit -m "Update OpenShelf to 0.5.1"
+git commit -m "Update OpenShelf to 0.6.0"
 git push
 ```
 

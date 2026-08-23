@@ -67,10 +67,6 @@ final class ShelfSelectionOverlayView: NSView {
     private var isDraggingSelection = false
     private var lastDragWindowLocation: NSPoint?
     private var autoScrollTimer: Timer?
-    private let autoScrollEdgeInset: CGFloat = 30
-    private let autoScrollMaxStep: CGFloat = 12
-    private let autoScrollInterval: TimeInterval = 1.0 / 30.0
-
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
     }
@@ -321,7 +317,7 @@ final class ShelfSelectionOverlayView: NSView {
         }
 
         let timer = Timer(
-            timeInterval: autoScrollInterval,
+            timeInterval: ShelfInteractionGeometry.autoScrollInterval,
             repeats: true
         ) { [weak self] _ in
             self?.autoScrollIfNeeded()
@@ -363,29 +359,13 @@ final class ShelfSelectionOverlayView: NSView {
             return
         }
 
-        let distanceToTop = scrollFrameInWindow.maxY
-            - currentWindowLocation.y
-        let distanceToBottom = currentWindowLocation.y
-            - scrollFrameInWindow.minY
-
-        let scrollDirection: CGFloat
-        let edgeDistance: CGFloat
-
-        if distanceToTop < autoScrollEdgeInset {
-            scrollDirection = documentView.isFlipped ? -1 : 1
-            edgeDistance = distanceToTop
-        } else if distanceToBottom < autoScrollEdgeInset {
-            scrollDirection = documentView.isFlipped ? 1 : -1
-            edgeDistance = distanceToBottom
-        } else {
+        guard let scrollDelta = ShelfInteractionGeometry.autoScrollDelta(
+            for: currentWindowLocation,
+            in: scrollFrameInWindow,
+            documentIsFlipped: documentView.isFlipped
+        ) else {
             return
         }
-
-        let closeness = max(
-            0,
-            min(1, 1 - edgeDistance / autoScrollEdgeInset)
-        )
-        let step = max(3, autoScrollMaxStep * closeness)
 
         let visibleRect = scrollView.contentView.bounds
         let documentBounds = documentView.bounds
@@ -396,7 +376,7 @@ final class ShelfSelectionOverlayView: NSView {
 
         var newOrigin = visibleRect.origin
         newOrigin.y = min(
-            max(newOrigin.y + step * scrollDirection, documentBounds.minY),
+            max(newOrigin.y + scrollDelta, documentBounds.minY),
             maxY
         )
 
@@ -421,24 +401,13 @@ final class ShelfSelectionOverlayView: NSView {
         let startContentPoint = mouseDownContentPoint
             ?? contentPoint(for: startRowFramePoint)
         let currentContentPoint = contentPoint(for: currentRowFramePoint)
-        let minY = min(startContentPoint.y, currentContentPoint.y)
-        let maxY = max(startContentPoint.y, currentContentPoint.y)
-
-        let rangeIDs = Set(
-            rowOrder.filter { itemID in
-                guard let frame = knownRowContentFrames[itemID] else {
-                    return false
-                }
-
-                return frame.maxY >= minY && frame.minY <= maxY
-            }
+        return ShelfInteractionGeometry.marqueeSelectionIDs(
+            rowOrder: rowOrder,
+            rowContentFrames: knownRowContentFrames,
+            startContentY: startContentPoint.y,
+            currentContentY: currentContentPoint.y,
+            baseItemIDs: addingToExistingSelection ? selectionBaseIDs : []
         )
-
-        if addingToExistingSelection {
-            return selectionBaseIDs.union(rangeIDs)
-        }
-
-        return rangeIDs
     }
 
     private func updateKnownRowContentFrames() {

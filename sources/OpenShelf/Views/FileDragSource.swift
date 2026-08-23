@@ -67,15 +67,6 @@ final class FileDragSourceView: NSView, NSDraggingSource {
     private var lastReorderTargetID: ShelfItem.ID?
     private let reorderPasteboardType =
         NSPasteboard.PasteboardType(shelfReorderPasteboardTypeIdentifier)
-    private let autoScrollEdgeInset: CGFloat = 30
-    private let autoScrollMaxStep: CGFloat = 12
-    private let autoScrollInterval: TimeInterval = 1.0 / 30.0
-    private let reorderCooldown: TimeInterval = 0.12
-    private let reorderTargetInset: CGFloat = 8
-    private let dragStartThreshold: CGFloat = 3
-    private let reorderStartThreshold: CGFloat = 8
-    private let reorderDominanceRatio: CGFloat = 1.25
-
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         registerForDraggedTypes([reorderPasteboardType])
@@ -122,21 +113,16 @@ final class FileDragSourceView: NSView, NSDraggingSource {
         let deltaY = event.locationInWindow.y
             - mouseDownEvent.locationInWindow.y
 
-        let absoluteDeltaX = abs(deltaX)
-        let absoluteDeltaY = abs(deltaY)
-
-        guard hypot(deltaX, deltaY) >= dragStartThreshold else {
-            return
-        }
-
         let itemsToDrag = dragItems.isEmpty ? [item] : dragItems
         let draggedItemIDs = Set(itemsToDrag.map(\.id))
         let canReorder = hasReorderTarget(excluding: draggedItemIDs)
-        let shouldStartReorder = canReorder
-            && absoluteDeltaY >= reorderStartThreshold
-            && absoluteDeltaY > absoluteDeltaX * reorderDominanceRatio
+        let dragIntent = ShelfInteractionGeometry.rowDragIntent(
+            deltaX: deltaX,
+            deltaY: deltaY,
+            canReorder: canReorder
+        )
 
-        if shouldStartReorder {
+        if dragIntent == .reorder {
             hasStartedDragging = true
             isReordering = true
             activeDragItems = itemsToDrag
@@ -146,10 +132,7 @@ final class FileDragSourceView: NSView, NSDraggingSource {
             return
         }
 
-        guard !canReorder
-            || absoluteDeltaX >= dragStartThreshold
-            || absoluteDeltaX >= absoluteDeltaY
-        else {
+        guard dragIntent == .dragOut else {
             return
         }
 
@@ -355,10 +338,12 @@ final class FileDragSourceView: NSView, NSDraggingSource {
         let now = CACurrentMediaTime()
 
         if targetItem.id == lastReorderTargetID {
-            return now - lastReorderTimestamp >= reorderCooldown
+            return now - lastReorderTimestamp
+                >= ShelfInteractionGeometry.reorderCooldown
         }
 
-        return now - lastReorderTimestamp >= reorderCooldown
+        return now - lastReorderTimestamp
+            >= ShelfInteractionGeometry.reorderCooldown
     }
 
     private func startAutoScrollTimer() {
@@ -367,7 +352,7 @@ final class FileDragSourceView: NSView, NSDraggingSource {
         }
 
         let timer = Timer(
-            timeInterval: autoScrollInterval,
+            timeInterval: ShelfInteractionGeometry.autoScrollInterval,
             repeats: true
         ) { [weak self] _ in
             self?.autoScrollIfNeeded()
@@ -409,29 +394,13 @@ final class FileDragSourceView: NSView, NSDraggingSource {
             return
         }
 
-        let distanceToTop = scrollFrameInWindow.maxY
-            - currentWindowLocation.y
-        let distanceToBottom = currentWindowLocation.y
-            - scrollFrameInWindow.minY
-
-        let scrollDirection: CGFloat
-        let edgeDistance: CGFloat
-
-        if distanceToTop < autoScrollEdgeInset {
-            scrollDirection = documentView.isFlipped ? -1 : 1
-            edgeDistance = distanceToTop
-        } else if distanceToBottom < autoScrollEdgeInset {
-            scrollDirection = documentView.isFlipped ? 1 : -1
-            edgeDistance = distanceToBottom
-        } else {
+        guard let scrollDelta = ShelfInteractionGeometry.autoScrollDelta(
+            for: currentWindowLocation,
+            in: scrollFrameInWindow,
+            documentIsFlipped: documentView.isFlipped
+        ) else {
             return
         }
-
-        let closeness = max(
-            0,
-            min(1, 1 - edgeDistance / autoScrollEdgeInset)
-        )
-        let step = max(3, autoScrollMaxStep * closeness)
 
         let visibleRect = scrollView.contentView.bounds
         let documentBounds = documentView.bounds
@@ -442,7 +411,7 @@ final class FileDragSourceView: NSView, NSDraggingSource {
 
         var newOrigin = visibleRect.origin
         newOrigin.y = min(
-            max(newOrigin.y + step * scrollDirection, documentBounds.minY),
+            max(newOrigin.y + scrollDelta, documentBounds.minY),
             maxY
         )
 
@@ -500,7 +469,10 @@ final class FileDragSourceView: NSView, NSDraggingSource {
             let frameInWindow = view.convert(view.bounds, to: nil)
             let activationFrame = frameInWindow.insetBy(
                 dx: 0,
-                dy: min(reorderTargetInset, frameInWindow.height / 3)
+                dy: min(
+                    ShelfInteractionGeometry.reorderTargetInset,
+                    frameInWindow.height / 3
+                )
             )
 
             if activationFrame.contains(location) {
@@ -542,7 +514,7 @@ private extension NSView {
     }
 }
 
-private final class ShelfDragPasteboardWriter: NSObject, NSPasteboardWriting {
+final class ShelfDragPasteboardWriter: NSObject, NSPasteboardWriting {
     private let item: ShelfItem
     private let fileURLPasteboardType =
         NSPasteboard.PasteboardType(UTType.fileURL.identifier)

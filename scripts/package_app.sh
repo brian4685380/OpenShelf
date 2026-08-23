@@ -14,12 +14,12 @@ set -euo pipefail
 #
 # Usage:
 #   ./scripts/package_app.sh
-#   ./scripts/package_app.sh 0.5.1
+#   ./scripts/package_app.sh 0.6.0
 # ============================================================
 
 APP_NAME="OpenShelf"
 CLI_NAME="shelf"
-VERSION="${1:-0.5.1}"
+VERSION="${1:-0.6.0}"
 BUNDLE_IDENTIFIER="com.brianyuan.OpenShelf"
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
