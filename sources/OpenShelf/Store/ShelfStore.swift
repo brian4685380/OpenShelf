@@ -340,15 +340,6 @@ final class ShelfStore: ObservableObject {
             }
         }
 
-        guard let monitor else {
-            /*
-             The file may already have disappeared before monitoring
-             could start.
-            */
-            removeIfMissing(item)
-            return
-        }
-
         fileMonitors[item.id] = monitor
     }
 

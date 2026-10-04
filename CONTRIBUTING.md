@@ -14,6 +14,8 @@ swift build -c release
 
 Tests use AppKit, pasteboards, and screen geometry, so they need a logged-in macOS GUI session. Run them serially: several intentionally present short-lived windows. CLI transport tests use unique notification names so they do not modify your running shelf.
 
+CI runs the full suite on Apple Silicon. Intel CI builds both products and runs non-SwiftUI-rendering regressions; its virtual GPU can abort inside Metal when rendering SwiftUI materials. For Intel UI changes, also test on a physical Intel Mac.
+
 ## Where things live
 
 | Directory | Responsibility |

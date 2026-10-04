@@ -27,7 +27,14 @@ jobs:
       - name: Toolchain
         run: swift --version
       - name: Build and test
+        if: matrix.runner == 'macos-15'
         run: swift test
+      - name: Core and native-event tests (Intel)
+        if: matrix.runner == 'macos-15-intel'
+        # Intel hosted VMs can abort in Metal's device-architecture assertion
+        # when SwiftUI materials render. Run the complete UI suite on arm64;
+        # retain model, import, filesystem and native-event coverage on Intel.
+        run: swift test --filter 'ShelfSelectionAndInteractionTests|ShelfStoreTests|ShelfContentImporterTests|ShelfDropStateTests|FileDragSourceTests|FileExistenceMonitorTests|ShelfCommandMailboxTests.testMailbox|ShelfWorkflowTests.testCLIArgumentsSupportHelpVersionSpacesAndLiteralDashNames'
       - name: Release build
         run: swift build -c release
       - name: CLI and script smoke checks

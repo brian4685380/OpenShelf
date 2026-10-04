@@ -1,6 +1,6 @@
 cask "openshelf" do
   version "0.7.0"
-  sha256 "e697f487b6d497b02685299462698a950884472a4d8e59aa0f3baf237b6ab42d"
+  sha256 "1f2ea0062a753a8a0d869d8a381e698e9fdd634e04bb14c8f184536e7f998910"
 
   url "https://github.com/brian4685380/OpenShelf/releases/download/v#{version}/OpenShelf-v#{version}-macOS.zip"
   name "OpenShelf"

@@ -2,18 +2,41 @@ import Darwin
 import Foundation
 
 final class FileExistenceMonitor {
+    private static let setupQueue: OperationQueue = {
+        let queue = OperationQueue()
+        queue.name = "OpenShelf.file-monitor-setup"
+        queue.qualityOfService = .utility
+        queue.maxConcurrentOperationCount = 4
+        return queue
+    }()
     private let stateLock = NSLock()
     private var source: DispatchSourceFileSystemObject?
     private var isStopped = false
 
-    init?(
+    init(
         url: URL,
+        openDescriptor: @escaping (String) -> Int32 = { open($0, O_EVTONLY | O_NONBLOCK | O_CLOEXEC) },
         onUnavailable: @escaping () -> Void
     ) {
-        let descriptor = open(url.path, O_EVTONLY)
+        // Even O_EVTONLY can block inside macOS (permissions, a filesystem
+        // provider, or a slow volume). Never open a watcher on the UI thread.
+        Self.setupQueue.addOperation { [weak self] in
+            guard let self else { return }
+            let descriptor = openDescriptor(url.path)
+            guard descriptor >= 0 else {
+                DispatchQueue.main.async(execute: onUnavailable)
+                return
+            }
+            self.install(descriptor: descriptor, onUnavailable: onUnavailable)
+        }
+    }
 
-        guard descriptor >= 0 else {
-            return nil
+    private func install(descriptor: Int32, onUnavailable: @escaping () -> Void) {
+        stateLock.lock()
+        defer { stateLock.unlock() }
+        guard !isStopped else {
+            close(descriptor)
+            return
         }
 
         let source = DispatchSource.makeFileSystemObjectSource(
@@ -55,6 +78,9 @@ final class FileExistenceMonitor {
 
         self.source = source
         source.resume()
+        // Recheck after setup so deletion between open and source registration
+        // cannot leave a stale row. The store only removes actually missing files.
+        DispatchQueue.main.async(execute: onUnavailable)
     }
 
     func stop() {

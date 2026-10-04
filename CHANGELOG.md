@@ -14,6 +14,7 @@
 
 ### Fixed
 
+- Open file-monitor descriptors on a bounded background queue, preventing slow filesystem/permission checks from freezing the shelf and CLI processing.
 - Keep copied/exported temporary files alive until quit, allowing destinations to read them after their shelf entries are removed.
 - Floating-window recovery after Desktop, fullscreen, wake, and display changes without disrupting in-progress Finder drops.
 - A vertical row-reorder gesture can become a file drag when it exits any shelf side, retaining the original selected group and anchoring the preview to the cursor.
