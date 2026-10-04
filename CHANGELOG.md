@@ -9,6 +9,7 @@
 - Selected/total item count, explicit accessibility labels and row actions, full-path tooltips, and a Paste from Clipboard button.
 - Menu-bar shortcut guide and About dialog.
 - `shelf --help`, `--version`, literal filenames after `--`, and acknowledged CLI delivery with meaningful exit codes.
+- A private, expiring request/reply queue recovers CLI delivery when distributed wake-up notifications are missed.
 - macOS CI, issue templates, contributor/security/release documentation, and reproducible light/dark README screenshots.
 
 ### Fixed

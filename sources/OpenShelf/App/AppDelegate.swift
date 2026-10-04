@@ -30,6 +30,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         commandReceiver = ShelfCommandReceiver(
             shelfController: shelfController
         )
+        commandReceiver?.processPendingRequests()
 
         let triggerController = EdgeTriggerController(
             shelfController: shelfController
@@ -316,6 +317,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func maintainFloatingWindows() {
         refreshEdgeTriggersNow()
         shelfController.maintainAlwaysOnTop()
+        commandReceiver?.processPendingRequests()
     }
 
     private func refreshFloatingWindowsNow() {

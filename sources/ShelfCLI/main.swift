@@ -11,7 +11,7 @@ private func fail(_ message: String, code: Int32) -> Never {
 
 private func launchIfNeeded() {
     guard !NSWorkspace.shared.runningApplications.contains(where: {
-        $0.bundleIdentifier == appBundleIdentifier || $0.localizedName == "OpenShelf"
+        !$0.isTerminated && ($0.bundleIdentifier == appBundleIdentifier || $0.localizedName == "OpenShelf")
     }) else { return }
     let process = Process()
     process.executableURL = URL(fileURLWithPath: "/usr/bin/open")
@@ -51,21 +51,25 @@ case .files(let arguments):
 
     let center = DistributedNotificationCenter.default()
     let requestID = UUID().uuidString
-    var reply: [AnyHashable: Any]?
-    let observer = center.addObserver(forName: ShelfCommandProtocol.acknowledged,
-        object: requestID, queue: .main) { reply = $0.userInfo }
-    defer { center.removeObserver(observer) }
+    let mailbox = ShelfCommandMailbox()
     launchIfNeeded()
+    do { try mailbox.submit(.init(id: requestID, paths: paths)) }
+    catch { fail("could not queue request: \(error.localizedDescription)", code: 75) }
+    var reply: ShelfCommandMailbox.Reply?
     let deadline = Date().addingTimeInterval(5)
     repeat {
+        // LaunchServices can briefly report an app that is still terminating
+        // after Quit/an upgrade. Recheck while the queued request is pending.
+        launchIfNeeded()
         center.postNotificationName(ShelfCommandProtocol.addFiles, object: nil,
-            userInfo: ["paths": paths, "requestID": requestID], deliverImmediately: true)
-        RunLoop.main.run(until: Date().addingTimeInterval(0.2))
+            userInfo: ["mailbox": true], deliverImmediately: true)
+        Thread.sleep(forTimeInterval: 0.1)
+        reply = mailbox.readReply(for: requestID)
     } while reply == nil && Date() < deadline
 
-    guard let reply, let added = reply["addedCount"] as? Int,
-        let skipped = reply["skippedCount"] as? Int else {
+    mailbox.removeRequest(requestID)
+    guard let reply else {
         fail("no acknowledgment from OpenShelf. Quit and reopen the updated app, then try again. Files may already have been added.", code: 75)
     }
-    print("OpenShelf: added \(added), skipped \(skipped).")
+    print("OpenShelf: added \(reply.addedCount), skipped \(reply.skippedCount).")
 }

@@ -7,13 +7,16 @@ final class ShelfCommandReceiver: NSObject {
     private let acknowledgmentName: Notification.Name
     private var completedRequests: [String: ShelfImportOutcome] = [:]
     private var requestOrder: [String] = []
+    private let mailbox: ShelfCommandMailbox
     init(
         shelfController: FloatingShelfController,
         notificationName: Notification.Name = ShelfCommandProtocol.addFiles,
-        acknowledgmentName: Notification.Name = ShelfCommandProtocol.acknowledged
+        acknowledgmentName: Notification.Name = ShelfCommandProtocol.acknowledged,
+        mailbox: ShelfCommandMailbox = ShelfCommandMailbox()
     ) {
         self.shelfController = shelfController
         self.acknowledgmentName = acknowledgmentName
+        self.mailbox = mailbox
         super.init()
 
         DistributedNotificationCenter.default().addObserver(
@@ -32,6 +35,10 @@ final class ShelfCommandReceiver: NSObject {
     @objc private func handleAddFilesNotification(
         _ notification: Notification
     ) {
+        if notification.userInfo?["mailbox"] as? Bool == true {
+            processPendingRequests()
+            return
+        }
         guard let paths = notification.userInfo?["paths"] as? [String] else {
             return
         }
@@ -53,6 +60,26 @@ final class ShelfCommandReceiver: NSObject {
                 completedRequests.removeValue(forKey: requestOrder.removeFirst())
             }
             acknowledge(requestID, outcome: outcome)
+        }
+    }
+
+    func processPendingRequests() {
+        for request in mailbox.pendingRequests() {
+            let outcome: ShelfImportOutcome
+            if let cached = completedRequests[request.id] {
+                outcome = cached
+            } else {
+                guard let result = shelfController?.addAndShow(urls: request.paths.map { URL(fileURLWithPath: $0) }) else { return }
+                outcome = result
+                completedRequests[request.id] = result
+                requestOrder.append(request.id)
+                if requestOrder.count > 128 {
+                    completedRequests.removeValue(forKey: requestOrder.removeFirst())
+                }
+            }
+            // Keep the request for a later retry if the reply couldn't be
+            // persisted. The cached outcome prevents duplicate UI changes.
+            try? mailbox.reply(to: request.id, with: .init(addedCount: outcome.addedCount, skippedCount: outcome.skippedCount))
         }
     }
 

@@ -84,6 +84,8 @@ DMG users can install the optional command from **OpenShelf menu → Install CLI
 
 The CLI launches OpenShelf if necessary, validates all paths before sending, and waits for the app to confirm receipt. `shelf --help` shows usage and exit codes; `shelf --version` reports the version. After upgrading, restart the app so the CLI and running app match.
 
+Requests use a private, short-lived local queue; notifications only wake the app. The shelf checks pending requests too, so a missed notification does not lose an addition. If the app cannot confirm receipt within five seconds, the CLI exits with an error rather than reporting success.
+
 ## Keyboard-first, too
 
 Hover over the shelf to use its shortcuts. These are shelf-local, not global keyboard shortcuts.
