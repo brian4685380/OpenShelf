@@ -422,9 +422,11 @@ final class FloatingShelfControllerTests: XCTestCase {
     func testHoverMakesShelfKeyForCommandVPaste() throws {
         _ = NSApplication.shared
         var panelAskedToBecomeKey: NSPanel?
+        let focusSettled = expectation(description: "hovered shelf becomes key")
         let controller = FloatingShelfController(
             makePanelKey: { panel in
                 panelAskedToBecomeKey = panel
+                focusSettled.fulfill()
             },
             primaryMouseButtonPressed: { false }
         )
@@ -437,16 +439,13 @@ final class FloatingShelfControllerTests: XCTestCase {
         )
         XCTAssertFalse(panel.becomesKeyOnlyIfNeeded)
         XCTAssertTrue(panel.canBecomeKey)
+        panel.ignoresMouseEvents = true
 
         dropContainer.rootView.onHoverChanged(true)
 
-        let focusSettled = expectation(
-            description: "hovered shelf becomes key"
-        )
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-            focusSettled.fulfill()
-        }
-        wait(for: [focusSettled], timeout: 1)
+        // Wait for the actual callback, not a timer that can overtake the
+        // nested MainActor task on a loaded/virtualized CI runner.
+        wait(for: [focusSettled], timeout: 3)
 
         XCTAssertTrue(panelAskedToBecomeKey === panel)
     }
