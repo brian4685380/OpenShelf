@@ -1,5 +1,6 @@
 import AppKit
 import Darwin
+import ShelfCore
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -44,6 +45,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        shelfController.prepareForTermination()
         floatingRefreshWorkItems.forEach { $0.cancel() }
         floatingRefreshWorkItems.removeAll()
         stopFloatingWindowMaintenance()
@@ -58,7 +60,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidChangeScreenParameters(_ notification: Notification) {
-        edgeTriggerController?.start()
+        edgeTriggerController?.screenParametersDidChange()
+        shelfController.screenParametersDidChange()
+        refreshFloatingWindows()
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
@@ -109,6 +113,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         menu.addItem(NSMenuItem.separator())
 
+        menu.addItem(NSMenuItem(title: "Keyboard Shortcuts…", action: #selector(showKeyboardShortcuts), keyEquivalent: ""))
+        menu.addItem(NSMenuItem(title: "About OpenShelf", action: #selector(showAbout), keyEquivalent: ""))
+        menu.addItem(NSMenuItem.separator())
+
         menu.addItem(
             NSMenuItem(
                 title: "Quit OpenShelf",
@@ -119,6 +127,43 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         item.menu = menu
         statusItem = item
+    }
+
+    @objc private func showKeyboardShortcuts() {
+        let alert = NSAlert()
+        alert.messageText = "Make room for your next move."
+        alert.informativeText = """
+        Hover over the shelf to use these shortcuts:
+
+        ↑ / ↓                  Select previous / next item
+        ⇧↑ / ⇧↓              Extend or shrink selection
+        ⌘A                     Select all
+        ⌘C                     Copy selected files
+        ⌥⌘C                  Copy selected paths
+        ⌘V                     Paste content onto the shelf
+        Space                 Quick Look
+        Return / ⌘O       Open selected files
+        Delete                 Remove from shelf (not the originals)
+        ⌘P                     Pin / unpin the expanded shelf
+        Escape               Clear selection, then close the shelf
+
+        Drag from blank space to select. Drag rows to reorder;
+        continue past any shelf edge to drag them into another app.
+        """
+        alert.addButton(withTitle: "Got it")
+        alert.runModal()
+    }
+
+    @objc private func showAbout() {
+        let alert = NSAlert()
+        alert.messageText = "OpenShelf \(OpenShelfVersion.current)"
+        alert.informativeText = "A little space between pick up and put down.\n\nNative macOS. Local by design. MIT licensed.\n© 2026 Brian Yuan"
+        alert.addButton(withTitle: "Done")
+        alert.addButton(withTitle: "View on GitHub")
+        if alert.runModal() == .alertSecondButtonReturn,
+            let url = URL(string: "https://github.com/brian4685380/OpenShelf") {
+            NSWorkspace.shared.open(url)
+        }
     }
 
     private func acquireSingleInstanceLock() -> Bool {
@@ -163,6 +208,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             name: NSWorkspace.didActivateApplicationNotification,
             object: nil
         )
+
+        for name in [
+            NSWorkspace.didWakeNotification,
+            NSWorkspace.screensDidWakeNotification,
+            NSWorkspace.sessionDidBecomeActiveNotification,
+        ] {
+            notificationCenter.addObserver(
+                self,
+                selector: #selector(refreshFloatingWindows),
+                name: name,
+                object: nil
+            )
+        }
     }
 
     private func startFloatingWindowMaintenance() {
@@ -257,6 +315,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func maintainFloatingWindows() {
         refreshEdgeTriggersNow()
+        shelfController.maintainAlwaysOnTop()
     }
 
     private func refreshFloatingWindowsNow() {

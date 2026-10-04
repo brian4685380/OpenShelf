@@ -14,6 +14,7 @@ let package = Package(
     targets: [
         .executableTarget(
             name: "OpenShelf",
+            dependencies: ["ShelfCore"],
             linkerSettings: [
                 .linkedFramework("SwiftUI"),
                 .linkedFramework("AppKit"),
@@ -21,14 +22,16 @@ let package = Package(
         ),
         .executableTarget(
             name: "ShelfCLI",
+            dependencies: ["ShelfCore"],
             path: "sources/ShelfCLI",
             linkerSettings: [
                 .linkedFramework("AppKit"),
             ]
         ),
+        .target(name: "ShelfCore", path: "sources/ShelfCore"),
         .testTarget(
             name: "OpenShelfTests",
-            dependencies: ["OpenShelf"],
+            dependencies: ["OpenShelf", "ShelfCore"],
             path: "Tests/OpenShelfTests"
         ),
     ]

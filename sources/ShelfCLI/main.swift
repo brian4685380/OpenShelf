@@ -1,129 +1,71 @@
 import AppKit
 import Foundation
+import ShelfCore
 
 private let appBundleIdentifier = "com.brianyuan.OpenShelf"
-private let notificationName = Notification.Name(
-    "com.brianyuan.OpenShelf.cli.addFiles"
-)
 
-enum LaunchState {
-    case alreadyRunning
-    case launched
-    case failed
+private func fail(_ message: String, code: Int32) -> Never {
+    fputs("shelf: \(message)\n", stderr)
+    exit(code)
 }
 
-private func printUsageAndExit() -> Never {
-    fputs(
-        """
-        Usage:
-          shelf <file-or-folder> [more-files-or-folders...]
-
-        Adds files or folders to OpenShelf. If OpenShelf is not running,
-        the command will try to launch it first.
-
-        """,
-        stderr
-    )
-    exit(64)
-}
-
-private func existingFilePaths(from arguments: [String]) -> [String] {
-    let currentDirectoryURL = URL(
-        fileURLWithPath: FileManager.default.currentDirectoryPath,
-        isDirectory: true
-    )
-
-    return arguments.compactMap { argument in
-        let url = URL(fileURLWithPath: argument, relativeTo: currentDirectoryURL)
-            .standardizedFileURL
-
-        guard FileManager.default.fileExists(atPath: url.path) else {
-            fputs("shelf: file does not exist: \(argument)\n", stderr)
-            return nil
-        }
-
-        return url.path
-    }
-}
-
-private func isOpenShelfRunning() -> Bool {
-    NSWorkspace.shared.runningApplications.contains {
-        $0.bundleIdentifier == appBundleIdentifier
-            || $0.localizedName == "OpenShelf"
-    }
-}
-
-private func launchOpenShelfIfNeeded() -> LaunchState {
-    guard !isOpenShelfRunning() else {
-        return .alreadyRunning
-    }
-
+private func launchIfNeeded() {
+    guard !NSWorkspace.shared.runningApplications.contains(where: {
+        $0.bundleIdentifier == appBundleIdentifier || $0.localizedName == "OpenShelf"
+    }) else { return }
     let process = Process()
     process.executableURL = URL(fileURLWithPath: "/usr/bin/open")
     process.arguments = ["-b", appBundleIdentifier]
-
     do {
         try process.run()
         process.waitUntilExit()
     } catch {
-        fputs("shelf: could not launch OpenShelf: \(error)\n", stderr)
-        return .failed
+        fail("could not launch OpenShelf: \(error.localizedDescription)", code: 69)
     }
-
     guard process.terminationStatus == 0 else {
-        fputs(
-            """
-            shelf: could not launch OpenShelf.
-            Make sure OpenShelf.app is installed in /Applications.
+        fail("install OpenShelf.app in /Applications and launch it once before using shelf.", code: 69)
+    }
+}
 
-            """,
-            stderr
-        )
-        return .failed
+let arguments: ShelfCLIArguments
+do { arguments = try ShelfCLIArguments(Array(CommandLine.arguments.dropFirst())) }
+catch { fail("\(error)\n\n\(ShelfCLIArguments.usage)", code: 64) }
+
+switch arguments {
+case .help:
+    print(ShelfCLIArguments.usage)
+case .version:
+    print("shelf \(OpenShelfVersion.current)")
+case .files(let arguments):
+    let cwd = URL(fileURLWithPath: FileManager.default.currentDirectoryPath, isDirectory: true)
+    var seen = Set<String>()
+    var paths: [String] = []
+    // Validate the entire request first; don't silently add a partial set.
+    for argument in arguments {
+        let path = URL(fileURLWithPath: argument, relativeTo: cwd).standardizedFileURL.path
+        guard FileManager.default.fileExists(atPath: path) else {
+            fail("file does not exist: \(argument)", code: 66)
+        }
+        if seen.insert(path).inserted { paths.append(path) }
     }
 
-    return .launched
-}
+    let center = DistributedNotificationCenter.default()
+    let requestID = UUID().uuidString
+    var reply: [AnyHashable: Any]?
+    let observer = center.addObserver(forName: ShelfCommandProtocol.acknowledged,
+        object: requestID, queue: .main) { reply = $0.userInfo }
+    defer { center.removeObserver(observer) }
+    launchIfNeeded()
+    let deadline = Date().addingTimeInterval(5)
+    repeat {
+        center.postNotificationName(ShelfCommandProtocol.addFiles, object: nil,
+            userInfo: ["paths": paths, "requestID": requestID], deliverImmediately: true)
+        RunLoop.main.run(until: Date().addingTimeInterval(0.2))
+    } while reply == nil && Date() < deadline
 
-private func postAddFilesNotification(paths: [String]) {
-    DistributedNotificationCenter.default().postNotificationName(
-        notificationName,
-        object: nil,
-        userInfo: ["paths": paths],
-        deliverImmediately: true
-    )
-}
-
-let arguments = Array(CommandLine.arguments.dropFirst())
-
-guard !arguments.isEmpty else {
-    printUsageAndExit()
-}
-
-let paths = existingFilePaths(from: arguments)
-
-guard !paths.isEmpty else {
-    exit(66)
-}
-
-let launchState = launchOpenShelfIfNeeded()
-
-guard launchState != .failed else {
-    exit(69)
-}
-
-/*
- The app may need a moment to finish launching and install its distributed
- notification observer. Posting repeatedly keeps the command simple and makes
- the cold-start path reliable enough without introducing a long-running helper.
- The app de-duplicates file URLs in ShelfStore.add(url:).
-*/
-let attempts = launchState == .launched ? 12 : 2
-
-for attempt in 0..<attempts {
-    postAddFilesNotification(paths: paths)
-
-    if attempt < attempts - 1 {
-        Thread.sleep(forTimeInterval: 0.15)
+    guard let reply, let added = reply["addedCount"] as? Int,
+        let skipped = reply["skippedCount"] as? Int else {
+        fail("no acknowledgment from OpenShelf. Quit and reopen the updated app, then try again. Files may already have been added.", code: 75)
     }
+    print("OpenShelf: added \(added), skipped \(skipped).")
 }

@@ -1,0 +1,34 @@
+name: Bug report
+description: Help us reproduce a problem with OpenShelf.
+body:
+  - type: input
+    id: version
+    attributes:
+      label: OpenShelf and macOS versions
+      placeholder: OpenShelf 0.7.0, macOS 15.7, Apple Silicon
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Include the source app, item type, and whether the shelf was empty or populated.
+      placeholder: "1. Open Finder…"
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Expected and actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: displays
+    attributes:
+      label: Displays, Desktops and fullscreen
+      description: For drag/window problems, describe monitor layout, Spaces and fullscreen apps. Does “Drop to add” appear?
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Recording, screenshot or logs
+      description: Optional. Redact personal paths and clipboard content before attaching.

@@ -1,265 +1,144 @@
-# OpenShelf
+<p align="center">
+  <img src="Assets/AppIcon.png" width="104" height="104" alt="OpenShelf icon">
+</p>
+
+<h1 align="center">OpenShelf</h1>
+
+<p align="center"><strong>A little space between pick up and put down.</strong></p>
+<p align="center">A native, open-source file shelf for macOS. Collect. Arrange. Drop anywhere.</p>
 
 <p align="center">
-  <strong>A lightweight, open-source file and content shelf for macOS.</strong>
+  <a href="https://github.com/brian4685380/OpenShelf/releases/latest"><img src="https://img.shields.io/github/v/release/brian4685380/OpenShelf?color=307AFF" alt="Latest release"></a>
+  <a href="https://github.com/brian4685380/OpenShelf/actions/workflows/ci.yml"><img src="https://github.com/brian4685380/OpenShelf/actions/workflows/ci.yml/badge.svg" alt="macOS build and tests"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="MIT license"></a>
+  <img src="https://img.shields.io/badge/macOS-13%2B-555?logo=apple" alt="macOS 13 or later">
 </p>
 
 <p align="center">
-  Temporarily collect files, images, and text, keep them within reach, and drag them wherever you need.
+  <a href="https://github.com/brian4685380/OpenShelf/releases/latest">Download</a> ·
+  <a href="#install">Install</a> ·
+  <a href="#keyboard-first-too">Shortcuts</a> ·
+  <a href="CHANGELOG.md">What's new</a> ·
+  <a href="CONTRIBUTING.md">Contribute</a>
 </p>
 
----
+<p align="center">
+  <img src="docs/images/shelf-light.png" width="360" alt="OpenShelf in light mode, with two selected files and the shelf pinned open">
+  <img src="docs/images/shelf-dark.png" width="360" alt="The same OpenShelf interface in dark mode">
+</p>
+<p align="center"><sub>Actual app views rendered with sample content. Light and dark appearance follow macOS.</sub></p>
 
-OpenShelf is a native macOS utility inspired by file-shelf applications such as DropShelf.
+## Your next move, within reach
 
-Drag files or content to the left or right edge of the screen to reveal a floating shelf. When the shelf is already visible, drop new content anywhere over the panel. Items placed on the shelf remain easily accessible while you work across applications, Desktops, and fullscreen spaces.
+Drag a file to either screen edge and OpenShelf appears. Collect a few more, switch apps, then drag them to their destination. If the shelf is already open, drop directly onto it—no trip back to the screen edge.
 
-OpenShelf is designed to stay minimal: it runs quietly from the menu bar, uses native SwiftUI and AppKit components, and keeps everything local on your Mac.
+- **More than files.** Collect folders, browser images, selected text, and links. Paste from the clipboard or send files from Terminal.
+- **Familiar selection.** Command-click, Shift-click, or drag through blank space to select a group. Drag back to shrink the selection.
+- **Your order.** Reorder rows and groups with an insertion guide and edge auto-scrolling. Continue past any shelf edge to drag files out.
+- **There when you need it.** Available across windows, Desktops, and fullscreen apps. Collapse to an edge tab, or pin the shelf expanded.
+- **Native and local.** SwiftUI + AppKit, adaptive appearance, accessible row actions, no account, analytics, or app-managed cloud uploads.
 
-## Features
+OpenShelf lives in the menu bar, not the Dock.
 
-- Reveal the shelf by dragging files, images, selected text, or links to either screen edge
-- Drop new content anywhere over an already visible shelf without returning to the screen edge
-- Position the shelf near the location where the drag was triggered
-- Temporarily store references to files and folders
-- Drop images, selected text, and web links directly from a browser
-- See clear drop-target and success feedback when content is added
-- Paste files, images, or text from the clipboard with Command-V while the pointer is over the shelf
-- Select one or more shelf items
-- Drag multiple selected files from the shelf into Finder or other applications
-- Drag files back into the shelf
-- Manually reorder shelf rows by dragging them up or down
-- Auto-scroll while drag-selecting or reordering long shelves
-- Open files with a double-click
-- Reveal files in Finder
-- Copy file paths
-- Remove individual items or clear the entire shelf
-- Automatically remove entries when their original files no longer exist
-- Collapse into a slim screen-edge tab when not in use
-- Stay triggerable after switching applications, windows, or tabs
-- Remain available across macOS Desktops and fullscreen applications
-- Native menu bar integration
-- Lightweight native macOS implementation
-- No analytics, accounts, or cloud services
+## Install
 
-## Why OpenShelf?
-
-Moving files between Finder windows and applications often requires repeatedly navigating through folders or keeping several windows open.
-
-OpenShelf provides a temporary staging area:
-
-1. Drag files to the edge of the screen, or directly onto a visible shelf.
-2. Keep them on the shelf while switching applications.
-3. Drag them to their destination when needed.
-
-For files and folders, the shelf stores references to the originals. Images,
-text, and web links imported from another app are materialized as temporary
-local files so they can be previewed, opened, and dragged out like normal files.
-Temporary browser image files are preserved before the source app removes them.
-
-## Installation
+**macOS 13+ · Apple Silicon.** Intel users can build from source; the downloadable app and Homebrew cask currently target arm64.
 
 ### Homebrew
 
-Homebrew is the recommended way to install OpenShelf if you want the `shelf`
-CLI to be available automatically.
-
-```bash
+```sh
 brew tap brian4685380/openshelf
 brew install --cask openshelf
+open /Applications/OpenShelf.app
 ```
 
-Homebrew installs `OpenShelf.app` and links the bundled `shelf` command into
-Homebrew's bin directory. The Homebrew cask is backed by the release ZIP asset,
-so each release ZIP must include `OpenShelf.app/Contents/MacOS/shelf`.
+The [Homebrew tap](https://github.com/brian4685380/homebrew-openshelf) also installs the `shelf` command.
 
-```bash
-shelf ~/Desktop/example.pdf ~/Downloads/example-folder
+To update, quit OpenShelf first, then:
+
+```sh
+brew update
+brew upgrade --cask openshelf
+open /Applications/OpenShelf.app
 ```
 
-### DMG
+### Direct download
 
-1. Download the latest `.dmg` file from the [Releases](../../releases) page.
-2. Open the downloaded DMG.
-3. Drag `OpenShelf.app` into the `Applications` folder.
-4. Launch OpenShelf from Applications.
+Download the DMG from [the latest release](https://github.com/brian4685380/OpenShelf/releases/latest), open it, and drag **OpenShelf → Applications**. Launch the app from Applications.
 
-OpenShelf runs as a menu bar application and does not appear in the Dock.
+> Releases are ad-hoc signed, **not Apple-notarized**. If macOS blocks the first launch, review [Apple's guidance](https://support.apple.com/102445). Only allow an app you trust through **System Settings → Privacy & Security → Open Anyway**. Do not disable Gatekeeper globally.
 
-> OpenShelf is currently distributed without Apple notarization. On the first launch, macOS may require you to Control-click the app, select **Open**, and confirm.
+DMG users can install the optional command from **OpenShelf menu → Install CLI Tool…**. It creates a symlink in `/usr/local/bin` and asks for administrator approval. Homebrew users do not need this step.
 
-### Optional CLI
+## Three ways in, one shelf
 
-OpenShelf also includes a command-line tool named `shelf`.
+1. **Drag:** reach either screen edge to reveal the shelf; once visible, its entire content area accepts drops.
+2. **Paste:** hover over the shelf and press **⌘V**, or use **Paste from Clipboard** in an empty shelf.
+3. **Terminal:**
 
-If you install with Homebrew, the CLI is linked automatically. If you install
-from the DMG, you can expose the CLI from the OpenShelf menu bar item:
+   ```sh
+   shelf ~/Desktop/report.pdf ~/Downloads/photos
+   shelf "Design notes.txt"
+   shelf -- -draft.txt
+   ```
 
-1. Click the OpenShelf menu bar icon.
-2. Select **Install CLI Tool…**.
-3. Enter your macOS administrator password when prompted.
+The CLI launches OpenShelf if necessary, validates all paths before sending, and waits for the app to confirm receipt. `shelf --help` shows usage and exit codes; `shelf --version` reports the version. After upgrading, restart the app so the CLI and running app match.
 
-This creates the following symlink:
+## Keyboard-first, too
 
-```bash
-sudo ln -sf /Applications/OpenShelf.app/Contents/MacOS/shelf /usr/local/bin/shelf
-```
+Hover over the shelf to use its shortcuts. These are shelf-local, not global keyboard shortcuts.
 
-If OpenShelf is already running, the files are added to the current shelf. If it
-is not running, the CLI attempts to launch OpenShelf first and then adds the
-files.
+| Shortcut | Action |
+| --- | --- |
+| ↑ / ↓ | Select previous / next item; scroll it into view |
+| ⇧↑ / ⇧↓ | Extend or shrink the selection |
+| ⌘A | Select all |
+| ⌘C | Copy selected files for pasting into Finder |
+| ⌥⌘C | Copy selected paths |
+| ⌘V | Add clipboard content |
+| Space | Quick Look |
+| Return / ⌘O | Open selected files |
+| Delete | Remove selected entries from the shelf |
+| ⌘P | Pin / unpin the expanded shelf |
+| Escape | Clear selection; press again to close |
 
-## Requirements
+Right-click a row for group actions. Click blank shelf space to clear the selection. Use the pin button to keep an empty or populated shelf expanded; the close button always works. Shortcut help is also available in the menu bar.
 
-- macOS 13 or later
-- Apple Silicon Mac (the current release artifact is arm64)
+## What happens to my files?
 
-## Usage
+- Files and folders are **references to originals**. Removing an entry or clearing the shelf does not delete those originals.
+- Imported text, images, and web links become temporary local files. Save anything you want to keep before removing it.
+- Temporary content copied or dragged out is kept until OpenShelf quits, so a destination has time to read it even after its shelf entry disappears.
+- A successful drag to another app removes those entries from the shelf. The destination determines whether the underlying file is copied or moved.
+- Shelf contents and pin state are **session-only**; they are not restored after quitting. This is a temporary staging area, not a backup.
+- Missing originals are automatically removed from the list. OpenShelf does not monitor the clipboard continuously; it reads it when you paste.
 
-1. Launch OpenShelf.
-2. Drag a file, folder, browser image, selected text, or web link to a screen edge, or directly onto the shelf when it is already visible.
-3. Drop it onto the shelf.
-4. Drag it from the shelf into Finder or another application when needed.
+## Build and contribute
 
-Shelf interactions:
+A macOS machine and a Swift 5.9+ toolchain / Xcode Command Line Tools are required.
 
-- Click a row to select it.
-- Command-click rows to add or remove individual items from the selection.
-- Drag across the empty shelf area to select multiple rows, similar to Finder.
-- Drag selected rows out of the shelf to move multiple files at once.
-- Drag rows up or down inside the shelf to manually reorder them.
-- Hover over the shelf and press Command-V to add supported clipboard content.
-- Run `shelf <file-or-folder> [...]` from Terminal to add files directly.
-
-Additional actions are available from each item's context menu.
-
-## Current Status
-
-OpenShelf is under active development.
-
-The current release supports the core shelf workflow, browser and clipboard
-content, multi-selection, dragging multiple selected items, manual row
-reordering, direct drops across the full visible shelf, adaptive light/dark
-appearance, reliable cross-window edge triggers, Homebrew distribution, and
-DMG installation guidance.
-
-Version 0.6.0 makes an already-visible shelf a reliable native Finder drop
-destination, including consecutive drops that never visit a screen edge. It
-also strengthens Finder-style selection, reordering, scrolling, window, CLI,
-clipboard, appearance, and packaging behavior with a comprehensive automated
-regression suite and release-artifact verification.
-
-Bug reports, feature suggestions, and contributions are welcome.
-
-## Build from Source
-
-### Prerequisites
-
-- macOS 13 or later
-- Xcode Command Line Tools
-- Swift toolchain
-
-Clone the repository:
-
-```bash
+```sh
 git clone https://github.com/brian4685380/OpenShelf.git
 cd OpenShelf
+swift run OpenShelf
 ```
 
-Run the app:
+Quit any installed OpenShelf instance before running a development build.
 
-```bash
-swift run
-```
-
-Build an optimized release:
-
-```bash
+```sh
+swift test
 swift build -c release
+./scripts/package_app.sh
 ```
 
-## Packaging
+See [Contributing](CONTRIBUTING.md) for architecture, regression tests, and screenshot generation; [Releasing](docs/releasing.md) for packaging and Homebrew publication.
 
-To create the `.app`, `.zip`, and `.dmg` release artifacts:
+Found a bug? [Open a report](https://github.com/brian4685380/OpenShelf/issues/new/choose) with the app version, macOS version, display setup, and reproduction steps. Please redact private file paths from logs.
 
-```bash
-chmod +x scripts/package_app.sh
-./scripts/package_app.sh 0.6.0
-```
+## Project
 
-The first packaging run creates a local virtual environment under `.build/`
-and installs the pinned `dmgbuild` dependency used to generate Finder layout
-metadata reliably.
+Built by [Brian Yuan](https://github.com/brian4685380) and contributors. Inspired by the file-shelf workflow popularized by apps such as Dropover and DropShelf; OpenShelf is an independent project.
 
-Generated files will be placed in:
+Near-term priorities: Developer ID signing and notarization, optional session restoration, and broader accessibility testing. Contributions that preserve a lightweight, predictable shelf are welcome.
 
-```text
-dist/
-├── OpenShelf.app
-├── shelf
-├── OpenShelf-v0.6.0-macOS.zip
-├── OpenShelf-v0.6.0-macOS.dmg
-└── openshelf.rb
-```
-
-The release ZIP is used by Homebrew and must contain both:
-
-```text
-OpenShelf.app/Contents/MacOS/OpenShelf
-OpenShelf.app/Contents/MacOS/shelf
-```
-
-The generated `dist/openshelf.rb` file contains the release ZIP checksum. After
-uploading `OpenShelf-v0.6.0-macOS.zip` to the matching GitHub release, copy the
-generated cask into the Homebrew tap:
-
-```bash
-cp dist/openshelf.rb /opt/homebrew/Library/Taps/brian4685380/homebrew-openshelf/Casks/openshelf.rb
-
-cd /opt/homebrew/Library/Taps/brian4685380/homebrew-openshelf
-git add Casks/openshelf.rb
-git commit -m "Update OpenShelf to 0.6.0"
-git push
-```
-
-## Built With
-
-- Swift
-- SwiftUI
-- AppKit
-- Swift Package Manager
-
-## Privacy
-
-OpenShelf works locally on your Mac.
-
-It does not:
-
-- upload files
-- collect analytics
-- require an account
-- connect to external services
-
-## Roadmap
-
-- Improved release signing and notarization
-- Additional shelf customization
-- Keyboard shortcuts
-- Improved accessibility
-
-## Contributing
-
-Contributions are welcome.
-
-You can help by:
-
-- reporting bugs
-- suggesting improvements
-- improving documentation
-- submitting pull requests
-
-For substantial changes, please open an issue first to discuss the proposed implementation.
-
-## License
-
-OpenShelf is open-source software. See the [`LICENSE`](LICENSE) file for details.
+[MIT License](LICENSE) · [Security](SECURITY.md) · [Changelog](CHANGELOG.md)

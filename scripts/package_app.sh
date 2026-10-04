@@ -14,15 +14,24 @@ set -euo pipefail
 #
 # Usage:
 #   ./scripts/package_app.sh
-#   ./scripts/package_app.sh 0.6.0
+#   ./scripts/package_app.sh 0.7.0
 # ============================================================
 
 APP_NAME="OpenShelf"
 CLI_NAME="shelf"
-VERSION="${1:-0.6.0}"
 BUNDLE_IDENTIFIER="com.brianyuan.OpenShelf"
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+SOURCE_VERSION="$(sed -n 's/.*public static let current = "\([^"]*\)".*/\1/p' "${PROJECT_ROOT}/sources/ShelfCore/ShelfCLIArguments.swift")"
+VERSION="${1:-${SOURCE_VERSION}}"
+if [[ ! "${VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || [[ "${VERSION}" != "${SOURCE_VERSION}" ]]; then
+    echo "Error: release version must match OpenShelfVersion.current (${SOURCE_VERSION})." >&2
+    exit 1
+fi
+if [[ "$(uname -m)" != "arm64" ]]; then
+    echo "Error: release artifacts and the cask currently target Apple Silicon. Package on an arm64 Mac." >&2
+    exit 1
+fi
 BUILD_DIR="${PROJECT_ROOT}/.build"
 DIST_DIR="${PROJECT_ROOT}/dist"
 
@@ -55,7 +64,8 @@ echo "Project: ${PROJECT_ROOT}"
 # Clean previous output
 # ------------------------------------------------------------
 
-rm -rf "${DIST_DIR}"
+rm -rf "${APP_BUNDLE}"
+rm -f "${ZIP_PATH}" "${DMG_PATH}" "${CLI_PATH}" "${CASK_PATH}"
 mkdir -p "${MACOS_DIR}"
 mkdir -p "${RESOURCES_DIR}"
 
@@ -184,6 +194,9 @@ codesign \
     --sign - \
     "${APP_BUNDLE}"
 
+"${MACOS_DIR}/${CLI_NAME}" --version | grep -Fx "shelf ${VERSION}"
+"${MACOS_DIR}/${CLI_NAME}" --help > /dev/null
+
 codesign --verify --deep --strict "${APP_BUNDLE}"
 
 # ------------------------------------------------------------
@@ -268,6 +281,8 @@ codesign \
     --strict \
     --verbose=2 \
     "${APP_BUNDLE}"
+
+(cd "${DIST_DIR}" && shasum -a 256 "$(basename "${ZIP_PATH}")" "$(basename "${DMG_PATH}")" > SHA256SUMS)
 
 echo
 echo "Release artifacts created:"

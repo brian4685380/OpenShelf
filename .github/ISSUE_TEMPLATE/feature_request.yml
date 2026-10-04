@@ -1,0 +1,16 @@
+name: Feature request
+description: Suggest an improvement to the shelf workflow.
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do?
+      description: Describe the workflow or frustration, not just the proposed control.
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Suggested behavior and alternatives
+    validations:
+      required: true

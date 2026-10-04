@@ -5,6 +5,9 @@ struct ContentView: View {
     @ObservedObject var store: ShelfStore
     @ObservedObject var dropState: ShelfDropState
     @StateObject private var selection: ShelfSelectionModel
+    @ObservedObject var presentation: ShelfPresentationState
+    let onTogglePin: () -> Void
+    let onPaste: () -> Void
     let onHoverChanged: (Bool) -> Void
     let onClose: () -> Void
     let onEmpty: () -> Void
@@ -18,6 +21,9 @@ struct ContentView: View {
         store: ShelfStore,
         dropState: ShelfDropState,
         selection: ShelfSelectionModel? = nil,
+        presentation: ShelfPresentationState? = nil,
+        onTogglePin: @escaping () -> Void = {},
+        onPaste: @escaping () -> Void = {},
         onHoverChanged: @escaping (Bool) -> Void,
         onClose: @escaping () -> Void,
         onEmpty: @escaping () -> Void,
@@ -25,6 +31,9 @@ struct ContentView: View {
     ) {
         self.store = store
         self.dropState = dropState
+        self.presentation = presentation ?? ShelfPresentationState()
+        self.onTogglePin = onTogglePin
+        self.onPaste = onPaste
         _selection = StateObject(
             wrappedValue: selection ?? ShelfSelectionModel()
         )
@@ -38,9 +47,6 @@ struct ContentView: View {
         VStack(spacing: 0) {
             header
 
-            // Divider()
-            //     .opacity(0.45)
-
             if store.items.isEmpty {
                 emptyState
             } else {
@@ -49,6 +55,11 @@ struct ContentView: View {
         }
         .frame(width: 300, height: 200)
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.12), lineWidth: 0.5)
+                .allowsHitTesting(false)
+        }
         .overlay {
             if dropState.isTargeted {
                 dropTargetCue
@@ -105,8 +116,11 @@ struct ContentView: View {
             .frame(height: 20)
 
             if !store.items.isEmpty {
-                Text("\(store.items.count)")
+                Text(selection.itemIDs.isEmpty
+                    ? "\(store.items.count)"
+                    : "\(selection.itemIDs.count)/\(store.items.count)")
                     .font(.system(size: 11, weight: .medium))
+                    .monospacedDigit()
                     .foregroundStyle(.secondary)
                     .padding(.horizontal, 7)
                     .padding(.vertical, 3)
@@ -114,6 +128,8 @@ struct ContentView: View {
                         Capsule()
                             .fill(Color.secondary.opacity(0.12))
                     }
+                    .help("\(selection.itemIDs.count) selected · \(store.items.count) items")
+                    .accessibilityLabel("\(selection.itemIDs.count) selected, \(store.items.count) items")
 
                 Button {
                     clearSelection()
@@ -126,7 +142,20 @@ struct ContentView: View {
                 .buttonStyle(.plain)
                 .foregroundStyle(.secondary)
                 .help("Clear shelf")
+                .accessibilityLabel("Clear shelf")
             }
+
+            Button(action: onTogglePin) {
+                Image(systemName: presentation.isPinned ? "pin.fill" : "pin")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(presentation.isPinned ? Color.accentColor : Color.secondary)
+                    .frame(width: 20, height: 20)
+                    .background(Circle().fill(presentation.isPinned ? Color.accentColor.opacity(0.12) : .clear))
+            }
+            .buttonStyle(.plain)
+            .help(presentation.isPinned ? "Unpin shelf (⌘P)" : "Keep shelf expanded (⌘P)")
+            .accessibilityLabel("Keep shelf expanded")
+            .accessibilityValue(presentation.isPinned ? "On" : "Off")
 
             Button {
                 onClose()
@@ -142,6 +171,7 @@ struct ContentView: View {
             .buttonStyle(.plain)
             .foregroundStyle(.secondary)
             .help("Close shelf")
+            .accessibilityLabel("Close shelf")
         }
         .frame(height: 20)
         .padding(.horizontal, 12)
@@ -169,9 +199,16 @@ struct ContentView: View {
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundStyle(.primary)
 
-            Text("Files, images, text, or press ⌘V")
+            Text("Files, folders, images & text")
                 .font(.system(size: 12))
                 .foregroundStyle(.secondary)
+
+            Button(action: onPaste) {
+                Text("Paste from Clipboard  ⌘V")
+                    .font(.system(size: 11, weight: .medium))
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(Color.accentColor)
 
             Spacer()
         }
@@ -195,7 +232,8 @@ struct ContentView: View {
                 Color.accentColor.opacity(0.08)
             }
 
-            ScrollView {
+            ScrollViewReader { scrollProxy in
+              ScrollView {
                 LazyVStack(spacing: 6) {
                     ForEach(store.items) { item in
                         ShelfRow(
@@ -217,7 +255,7 @@ struct ContentView: View {
                                     )
                                 }
 
-                                store.remove(draggedItems)
+                                store.finishExport(draggedItems)
 
                                 selection.subtract(
                                     draggedItems.map(\.id)
@@ -266,6 +304,7 @@ struct ContentView: View {
                                     actionItems(for: item)
                                 )
                             },
+                            onCopy: { store.copy(actionItems(for: item)) },
                             onRemove: {
                                 let items = actionItems(for: item)
 
@@ -276,6 +315,7 @@ struct ContentView: View {
                                 )
                             }
                         )
+                        .id(item.id)
                         .background {
                             GeometryReader { proxy in
                                 Color.clear.preference(
@@ -302,6 +342,12 @@ struct ContentView: View {
                 maxHeight: .infinity,
                 alignment: .top
             )
+              .onChange(of: selection.keyboardNavigationGeneration) { _ in
+                  if let id = selection.focusedItemID {
+                      scrollProxy.scrollTo(id)
+                  }
+              }
+            }
 
             ShelfSelectionOverlay(
                 rowFrames: rowFrames,

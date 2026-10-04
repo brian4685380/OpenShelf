@@ -12,6 +12,9 @@ final class ShelfStore: ObservableObject {
 
     private var fileMonitors: [UUID: FileExistenceMonitor] = [:]
     private let contentImporter = ShelfContentImporter()
+    // File URLs can be read asynchronously by the destination after a drop or
+    // Copy. Keep exported temporary content alive for the rest of this session.
+    private var exportedContentURLs: Set<URL> = []
 
     @discardableResult
     func add(
@@ -173,19 +176,10 @@ final class ShelfStore: ObservableObject {
     }
 
     func copyPath(_ item: ShelfItem) {
-        guard fileExists(item) else {
-            remove(item)
-            return
-        }
-
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(
-            item.url.path,
-            forType: .string
-        )
+        copyPath([item])
     }
 
-    func copyPath(_ items: [ShelfItem]) {
+    func copyPath(_ items: [ShelfItem], to pasteboard: NSPasteboard = .general) {
         let existingItems = items.filter { item in
             if fileExists(item) {
                 return true
@@ -195,11 +189,38 @@ final class ShelfStore: ObservableObject {
             return false
         }
 
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(
+        guard !existingItems.isEmpty else { return }
+        pasteboard.clearContents()
+        pasteboard.setString(
             existingItems.map(\.url.path).joined(separator: "\n"),
             forType: .string
         )
+    }
+
+    @discardableResult
+    func copy(_ items: [ShelfItem], to pasteboard: NSPasteboard = .general) -> Bool {
+        let existingItems = items.filter { fileExists($0) }
+        guard !existingItems.isEmpty else { return false }
+        pasteboard.clearContents()
+        let copied = pasteboard.writeObjects(existingItems.map { $0.url as NSURL })
+        if copied { retainExportedContent(existingItems) }
+        return copied
+    }
+
+    func finishExport(_ items: [ShelfItem]) {
+        retainExportedContent(items)
+        remove(items)
+    }
+
+    private func retainExportedContent(_ items: [ShelfItem]) {
+        exportedContentURLs.formUnion(items.filter(\.isManagedByShelf).map(\.url))
+    }
+
+    func cleanUpSession() {
+        clear()
+        let exported = exportedContentURLs
+        exportedContentURLs.removeAll()
+        for url in exported { removeManagedContent(at: url) }
     }
 
     func clear() {
@@ -351,6 +372,7 @@ final class ShelfStore: ObservableObject {
     }
 
     private func removeManagedContent(at url: URL) {
+        guard !exportedContentURLs.contains(url) else { return }
         try? FileManager.default.removeItem(at: url)
 
         let parentDirectory = url.deletingLastPathComponent()

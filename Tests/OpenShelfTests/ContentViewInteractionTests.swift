@@ -5,6 +5,28 @@ import XCTest
 
 @MainActor
 final class ContentViewInteractionTests: XCTestCase {
+    func testKeyboardNavigationScrollsToOffscreenRows() throws {
+        let fixture = try makeFixture(count: 20)
+        defer { fixture.remove() }
+        let store = ShelfStore()
+        fixture.urls.forEach { _ = store.add(url: $0) }
+        defer { store.clear() }
+        let selection = ShelfSelectionModel()
+        let hosted = host(store: store, dropState: ShelfDropState(), selection: selection)
+        defer { hosted.window.orderOut(nil) }
+        pumpRunLoop(for: 0.1)
+        for _ in 0..<20 {
+            selection.navigate(in: store.items, direction: 1, extending: false)
+            pumpRunLoop(for: 0.01)
+        }
+        pumpRunLoop(for: 0.1)
+        let row = try XCTUnwrap(hosted.hostingView.descendants(ofType: FileDragSourceView.self)
+            .first { $0.item?.id == store.items.last?.id })
+        let visible = row.visibleRect
+        XCTAssertGreaterThan(visible.height, 0)
+        XCTAssertEqual(selection.itemIDs, [try XCTUnwrap(store.items.last?.id)])
+    }
+
     func testShelfBackgroundIsOpaqueAndAdaptsToLightAndDarkMode() throws {
         let lightComponents = try colorComponents(for: .aqua)
         let darkComponents = try colorComponents(for: .darkAqua)

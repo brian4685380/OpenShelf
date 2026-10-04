@@ -19,13 +19,18 @@ enum ShelfInteractionGeometry {
     static func rowDragIntent(
         deltaX: CGFloat,
         deltaY: CGFloat,
-        canReorder: Bool
+        canReorder: Bool,
+        isOutsideShelf: Bool = false
     ) -> ShelfRowDragIntent {
         let absoluteDeltaX = abs(deltaX)
         let absoluteDeltaY = abs(deltaY)
 
         guard hypot(deltaX, deltaY) >= dragStartThreshold else {
             return .pending
+        }
+
+        if isOutsideShelf {
+            return .dragOut
         }
 
         if canReorder,

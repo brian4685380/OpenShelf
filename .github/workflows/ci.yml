@@ -1,0 +1,38 @@
+name: macOS CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: macos-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Build and test (${{ matrix.runner }})
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [macos-15, macos-15-intel]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Toolchain
+        run: swift --version
+      - name: Build and test
+        run: swift test
+      - name: Release build
+        run: swift build -c release
+      - name: CLI and script smoke checks
+        run: |
+          .build/release/shelf --help
+          .build/release/shelf --version
+          bash -n scripts/package_app.sh scripts/verify_release.sh
+          git diff --exit-code

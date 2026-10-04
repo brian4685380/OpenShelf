@@ -85,7 +85,76 @@ live macOS verification.
 | REL-01 | README, package defaults, app metadata, cask metadata, supported architecture, and minimum macOS version agree. | Static release audit |
 | REL-02 | ZIP and DMG are valid; the ZIP contains the app and bundled CLI; checksums and generated Homebrew cask agree. | Packaging and artifact audit |
 
-## Audit result
+## Desktop/Space follow-up (2026-10-02, unreleased)
+
+The running `/Applications/OpenShelf.app` was confirmed as v0.6.0; its executable
+matches the local release artifact. GitHub's latest release and the Homebrew tap
+also remain v0.6.0. The intermittent Space issue is therefore not explained by
+an outdated running copy. Stage Manager was disabled and two displays were
+connected during inspection.
+
+The working tree now gives the shelf, drop capture, and edge triggers the same
+explicit `canJoinAllApplications` behavior, in addition to `canJoinAllSpaces`.
+Apple documents this role for floating windows that accompany other apps in
+[fullscreen Spaces and Stage Manager](https://developer.apple.com/documentation/appkit/nswindow/collectionbehavior-swift.struct/canjoinallapplications).
+The interactive floating window level is preserved for Finder drops.
+
+Refreshes deferred during a drag now retry after release. Maintenance also
+clears stale drag-target state left by an interrupted gesture, restores a
+presented window that becomes hidden, and never reopens a closed shelf. Display
+changes reposition the shelf and its capture area together, preserving the
+collapsed state, and postpone rebuilding edge destinations until dragging ends.
+Wake/session activation notifications request the same recovery.
+
+Verification: `swift test --disable-sandbox` passed **71 tests, 0 failures**.
+Six new regressions cover deferred refresh, an interrupted drag, hidden versus
+closed windows, expanded/collapsed display relocation, and deferred edge
+rebuilding. Existing drop, paste, selection, reorder, and appearance tests pass.
+
+Status: **accepted by the user after the requested live checks ("LGTM")**.
+Configuration and controller tests alone do not establish correct WindowServer
+behavior. After checking that the installed process had no remaining shelf file
+references, it was stopped and `.build/debug/OpenShelf` was launched. The CLI
+showed a disposable test row. A WindowServer observer confirmed that the shelf,
+capture window, and four edge triggers stayed on-screen across foreground app
+changes with both displays connected.
+
+The UI automation did not produce a confirmed active-Space change; Mission
+Control/Dock access timed out. Thus fullscreen-looking Finder window states
+were not counted as proof of successful Space transitions. Manual verification
+was requested with the fixed development build running, covering regular
+Desktops/fullscreen Spaces, shelf reveal, drops, and paste. After the final
+restart-and-test request for Desktop switching and vertical drag-out, the user
+replied "LGTM". This closes the live-verification blocker based on user
+confirmation; it does not claim that automated Space switching succeeded.
+These changes have not been packaged or released, and the installed app bundle
+remains v0.6.0.
+
+### Dragging out after vertical reordering
+
+The follow-up report exposed a separate gesture bug: after a vertical gesture
+entered direct-reorder mode, `mouseDragged` never handed it to a native file
+drag, even when the cursor left the shelf. The working tree now hands off at
+any of the four outer edges. Movement inside the shelf, including its scroll
+edge zones, continues to reorder/auto-scroll. A fast first movement straight
+outside also starts a file drag. The handoff retains the original selected
+items and anchors the drag image to the current cursor after row movement.
+
+`FileDragSourceTests` exercises the actual mouse event path through a recording
+native-session boundary, covering all four exits, fast vertical exits,
+selection/preview preservation, internal reordering, and single-row vertical
+drags. The full suite passed **76 tests, 0 failures** on 2026-10-02. These tests
+verify the handoff request and payload, not a completed cross-application drop.
+The user was asked to restart the development app to load this fix and test
+vertical drag-out alongside Desktop switching, then confirmed "LGTM".
+
+The CLI receiver regression was also isolated onto a unique distributed
+notification name per run. Previously it broadcast on the production channel,
+temporarily adding test rows to a running app and moving its shelf during live
+verification. The isolated receiver test passed, and the running app no longer
+received those fixture additions. The production CLI channel is unchanged.
+
+## v0.6.0 release audit result
 
 Audit date: 2026-08-23
 

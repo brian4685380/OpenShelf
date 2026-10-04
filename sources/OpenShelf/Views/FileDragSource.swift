@@ -45,7 +45,7 @@ struct FileDragSource: NSViewRepresentable {
     }
 }
 
-final class FileDragSourceView: NSView, NSDraggingSource {
+class FileDragSourceView: NSView, NSDraggingSource {
     var item: ShelfItem?
     var dragItems: [ShelfItem] = []
     var onDragStarted: (() -> Void)?
@@ -100,7 +100,13 @@ final class FileDragSourceView: NSView, NSDraggingSource {
         }
 
         if isReordering {
-            updateDirectReorder(with: event)
+            if isOutsideShelf(at: event.locationInWindow) {
+                // Keep the selection captured when this gesture began, even
+                // if SwiftUI has since moved or recycled the source row.
+                beginFileDrag(items: activeDragItems, event: event)
+            } else {
+                updateDirectReorder(with: event)
+            }
             return
         }
 
@@ -119,7 +125,8 @@ final class FileDragSourceView: NSView, NSDraggingSource {
         let dragIntent = ShelfInteractionGeometry.rowDragIntent(
             deltaX: deltaX,
             deltaY: deltaY,
-            canReorder: canReorder
+            canReorder: canReorder,
+            isOutsideShelf: isOutsideShelf(at: event.locationInWindow)
         )
 
         if dragIntent == .reorder {
@@ -138,17 +145,31 @@ final class FileDragSourceView: NSView, NSDraggingSource {
 
         hasStartedDragging = true
         onDragStarted?()
+        beginFileDrag(items: itemsToDrag, event: event)
+    }
 
-        activeDragItems = itemsToDrag
+    private func isOutsideShelf(at location: NSPoint) -> Bool {
+        guard let contentView = window?.contentView else { return false }
+        let shelfFrame = contentView.convert(contentView.bounds, to: nil)
+        return !shelfFrame.contains(location)
+    }
+
+    private func beginFileDrag(items: [ShelfItem], event: NSEvent) {
+        isReordering = false
+        lastDragWindowLocation = nil
+        stopAutoScrollTimer()
+        activeDragItems = items
 
         let dragSize = NSSize(width: 48, height: 48)
 
+        // Anchor the preview at the handoff position. The source row may have
+        // moved or scrolled a long way since mouseDown during a reorder.
         let locationInView = convert(
-            mouseDownEvent.locationInWindow,
+            event.locationInWindow,
             from: nil
         )
 
-        let draggingItems = itemsToDrag.enumerated().map { index, item in
+        let draggingItems = items.enumerated().map { index, item in
             let draggingItem = NSDraggingItem(
                 pasteboardWriter: ShelfDragPasteboardWriter(item: item)
             )
@@ -172,9 +193,13 @@ final class FileDragSourceView: NSView, NSDraggingSource {
             return draggingItem
         }
 
+        startNativeDragSession(with: draggingItems, event: event)
+    }
+
+    func startNativeDragSession(with items: [NSDraggingItem], event: NSEvent) {
         let session = beginDraggingSession(
-            with: draggingItems,
-            event: mouseDownEvent,
+            with: items,
+            event: event,
             source: self
         )
 

@@ -153,10 +153,12 @@ final class ShelfStoreTests: XCTestCase {
         let store = populatedStore(with: urls)
         defer { store.clear() }
 
-        store.copyPath([store.items[0], store.items[2]])
+        let pasteboard = NSPasteboard.withUniqueName()
+        defer { pasteboard.releaseGlobally() }
+        store.copyPath([store.items[0], store.items[2]], to: pasteboard)
 
         XCTAssertEqual(
-            NSPasteboard.general.string(forType: .string),
+            pasteboard.string(forType: .string),
             [urls[0].path, urls[2].path].joined(separator: "\n")
         )
     }

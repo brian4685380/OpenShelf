@@ -4,6 +4,38 @@ import XCTest
 
 @MainActor
 final class ShelfCommandReceiverTests: XCTestCase {
+    func testAcknowledgmentIsIdempotentAcrossRetries() throws {
+        _ = NSApplication.shared
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("CLI Ack \(UUID()).txt")
+        try Data("fixture".utf8).write(to: url)
+        defer { try? FileManager.default.removeItem(at: url) }
+        let controller = FloatingShelfController()
+        defer { controller.clearShelf(); controller.closeShelf() }
+        let requestName = Notification.Name("OpenShelf.tests.request.\(UUID())")
+        let replyName = Notification.Name("OpenShelf.tests.reply.\(UUID())")
+        let receiver = ShelfCommandReceiver(shelfController: controller,
+            notificationName: requestName, acknowledgmentName: replyName)
+        let id = UUID().uuidString
+        var counts: [Int] = []
+        let center = DistributedNotificationCenter.default()
+        let observer = center.addObserver(forName: replyName, object: id, queue: .main) {
+            if let count = $0.userInfo?["addedCount"] as? Int { counts.append(count) }
+        }
+        defer { center.removeObserver(observer) }
+        withExtendedLifetime(receiver) {
+            for _ in 0..<2 {
+                center.postNotificationName(requestName, object: nil,
+                    userInfo: ["paths": [url.path], "requestID": id], deliverImmediately: true)
+                RunLoop.main.run(until: Date().addingTimeInterval(0.15))
+            }
+        }
+        XCTAssertEqual(counts, [1, 1], "A retry must acknowledge the original result, not add/show again.")
+        let panel = try XCTUnwrap(NSApp.windows.first { $0.title == "OpenShelf" && $0.isVisible })
+        let view = try XCTUnwrap(panel.contentView as? ShelfDropContainerView<ContentView>)
+        XCTAssertEqual(view.rootView.store.items.count, 1)
+        XCTAssertEqual(view.rootView.dropState.successfulDropGeneration, 1)
+    }
+
     func testCommandNotificationAddsMultipleFilesAndShowsShelf() throws {
         _ = NSApplication.shared
         let directory = FileManager.default.temporaryDirectory
@@ -21,10 +53,18 @@ final class ShelfCommandReceiverTests: XCTestCase {
 
         let controller = FloatingShelfController()
         controller.preparePanel()
-        let receiver = ShelfCommandReceiver(shelfController: controller)
+        // Use the real distributed transport without adding fixture files to
+        // a user's running shelf or moving it to the test's active display.
+        let notificationName = Notification.Name(
+            "com.brianyuan.OpenShelf.tests.addFiles.\(UUID().uuidString)"
+        )
+        let receiver = ShelfCommandReceiver(
+            shelfController: controller,
+            notificationName: notificationName
+        )
         withExtendedLifetime(receiver) {
             DistributedNotificationCenter.default().postNotificationName(
-                Notification.Name("com.brianyuan.OpenShelf.cli.addFiles"),
+                notificationName,
                 object: nil,
                 userInfo: ["paths": urls.map(\.path)],
                 deliverImmediately: true

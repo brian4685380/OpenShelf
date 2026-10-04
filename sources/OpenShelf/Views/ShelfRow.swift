@@ -17,6 +17,7 @@ struct ShelfRow: View {
     let onQuickLook: () -> Void
     let onRevealInFinder: () -> Void
     let onCopyPath: () -> Void
+    let onCopy: () -> Void
     let onRemove: () -> Void
 
     @State private var isHovering = false
@@ -44,6 +45,7 @@ struct ShelfRow: View {
             .foregroundStyle(.secondary)
             .opacity(isHovering ? 1 : 0)
             .help("Remove from shelf")
+            .accessibilityLabel("Remove \(item.url.lastPathComponent) from shelf")
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 6)
@@ -70,6 +72,16 @@ struct ShelfRow: View {
         .onHover { hovering in
             isHovering = hovering
         }
+        .help(item.url.path)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(item.url.lastPathComponent)
+        .accessibilityValue(isSelected ? "Selected" : "Not selected")
+        .accessibilityHint("\(item.isManagedByShelf ? "Temporary shelf content" : item.url.deletingLastPathComponent().path)")
+        .accessibilityAction { onClick([]) }
+        .accessibilityAction(named: Text("Open"), onOpen)
+        .accessibilityAction(named: Text("Quick Look"), onQuickLook)
+        .accessibilityAction(named: Text("Copy"), onCopy)
+        .accessibilityAction(named: Text("Remove from shelf"), onRemove)
         .contextMenu {
             Button {
                 onOpen()
@@ -96,6 +108,12 @@ struct ShelfRow: View {
                     "Reveal in Finder",
                     systemImage: "folder"
                 )
+            }
+
+            Button {
+                onCopy()
+            } label: {
+                Label("Copy", systemImage: "doc.on.doc")
             }
 
             Button {
@@ -131,11 +149,7 @@ struct ShelfRow: View {
                     .lineLimit(1)
                     .truncationMode(.middle)
 
-                Text(
-                    item.url
-                        .deletingLastPathComponent()
-                        .path
-                )
+                Text(item.isManagedByShelf ? "Temporary shelf content" : item.url.deletingLastPathComponent().abbreviatedPath)
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
@@ -195,4 +209,8 @@ struct ShelfRow: View {
             y: 0
         )
     }
+}
+
+private extension URL {
+    var abbreviatedPath: String { (path as NSString).abbreviatingWithTildeInPath }
 }

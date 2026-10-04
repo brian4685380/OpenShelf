@@ -5,13 +5,9 @@ final class EdgeTriggerController {
     private weak var shelfController: FloatingShelfController?
     private var triggerPanels: [NSPanel] = []
     private let canReorderWindows: @MainActor () -> Bool
+    private var needsScreenRebuild = false
 
     private let triggerWidth: CGFloat = 12
-    // Generic transparent NSPanel drag destinations stop receiving reliable
-    // cross-process drags at .screenSaver on current macOS releases. Keep the
-    // edge strip at AppKit's interactive floating level and restore its front
-    // ordering after foreground-window changes instead.
-    private let triggerWindowLevel = NSWindow.Level.floating
 
     init(
         shelfController: FloatingShelfController,
@@ -48,6 +44,7 @@ final class EdgeTriggerController {
     }
 
     func stop() {
+        needsScreenRebuild = false
         for panel in triggerPanels {
             panel.orderOut(nil)
         }
@@ -55,11 +52,21 @@ final class EdgeTriggerController {
         triggerPanels.removeAll()
     }
 
+    func screenParametersDidChange() {
+        needsScreenRebuild = true
+        refresh()
+    }
+
     func refresh() {
         // Reordering a destination while Finder owns a drag can make AppKit
         // cancel or retarget that drag. The maintenance heartbeat will retry
         // immediately after the mouse button is released.
         guard canReorderWindows() else {
+            return
+        }
+
+        if needsScreenRebuild {
+            start()
             return
         }
 
@@ -130,17 +137,6 @@ final class EdgeTriggerController {
     }
 
     private func configureFloatingBehavior(for panel: NSPanel) {
-        panel.isFloatingPanel = true
-        // NSPanel may reset its level when this flag changes. Set the intended
-        // interactive trigger level afterwards, then let refresh() restore its
-        // front ordering after foreground-window changes.
-        panel.level = triggerWindowLevel
-        panel.hidesOnDeactivate = false
-        panel.collectionBehavior = [
-            .canJoinAllSpaces,
-            .fullScreenAuxiliary,
-            .stationary,
-            .ignoresCycle,
-        ]
+        ShelfWindowPolicy.apply(to: panel)
     }
 }

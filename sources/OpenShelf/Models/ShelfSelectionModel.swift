@@ -3,6 +3,8 @@ import AppKit
 @MainActor
 final class ShelfSelectionModel: ObservableObject {
     @Published private(set) var itemIDs: Set<ShelfItem.ID>
+    @Published private(set) var focusedItemID: ShelfItem.ID?
+    @Published private(set) var keyboardNavigationGeneration: UInt = 0
     private(set) var anchorItemID: ShelfItem.ID?
 
     init(
@@ -22,6 +24,7 @@ final class ShelfSelectionModel: ObservableObject {
         in items: [ShelfItem],
         modifiers: NSEvent.ModifierFlags
     ) {
+        focusedItemID = item.id
         if modifiers.contains(.shift),
             let anchorItemID,
             let anchorIndex = items.firstIndex(where: {
@@ -74,6 +77,31 @@ final class ShelfSelectionModel: ObservableObject {
     func selectOnly(_ item: ShelfItem) {
         itemIDs = [item.id]
         anchorItemID = item.id
+        focusedItemID = item.id
+    }
+
+    func selectAll(in items: [ShelfItem]) {
+        itemIDs = Set(items.map(\.id))
+        anchorItemID = items.first?.id
+        focusedItemID = items.first?.id
+    }
+
+    func navigate(in items: [ShelfItem], direction: Int, extending: Bool) {
+        guard !items.isEmpty else { return }
+        let currentIndex = items.firstIndex { $0.id == focusedItemID }
+            ?? items.firstIndex { itemIDs.contains($0.id) }
+        let nextIndex = currentIndex.map {
+            min(max($0 + direction, 0), items.count - 1)
+        } ?? (direction > 0 ? 0 : items.count - 1)
+        let next = items[nextIndex]
+        if extending, let anchorItemID,
+            let anchorIndex = items.firstIndex(where: { $0.id == anchorItemID }) {
+            itemIDs = Set(items[min(anchorIndex, nextIndex)...max(anchorIndex, nextIndex)].map(\.id))
+            focusedItemID = next.id
+        } else {
+            selectOnly(next)
+        }
+        keyboardNavigationGeneration &+= 1
     }
 
     func replace(
@@ -81,6 +109,7 @@ final class ShelfSelectionModel: ObservableObject {
         anchorItemID: ShelfItem.ID?
     ) {
         self.itemIDs = itemIDs
+        focusedItemID = anchorItemID
         if let anchorItemID, itemIDs.contains(anchorItemID) {
             self.anchorItemID = anchorItemID
         } else {
@@ -91,10 +120,14 @@ final class ShelfSelectionModel: ObservableObject {
     func clear() {
         itemIDs = []
         anchorItemID = nil
+        focusedItemID = nil
     }
 
     func subtract(_ removedItemIDs: [ShelfItem.ID]) {
         itemIDs.subtract(removedItemIDs)
+        if let focusedItemID, removedItemIDs.contains(focusedItemID) {
+            self.focusedItemID = nil
+        }
 
         if let anchorItemID, !itemIDs.contains(anchorItemID) {
             self.anchorItemID = nil
@@ -104,6 +137,9 @@ final class ShelfSelectionModel: ObservableObject {
     func prune(to items: [ShelfItem]) {
         let validItemIDs = Set(items.map(\.id))
         itemIDs.formIntersection(validItemIDs)
+        if let focusedItemID, !validItemIDs.contains(focusedItemID) {
+            self.focusedItemID = nil
+        }
 
         if let anchorItemID, !validItemIDs.contains(anchorItemID) {
             self.anchorItemID = items.first(where: {
