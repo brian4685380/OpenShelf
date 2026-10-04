@@ -13,6 +13,12 @@ final class FileExistenceMonitor {
     private var source: DispatchSourceFileSystemObject?
     private var isStopped = false
 
+    var isMonitoring: Bool {
+        stateLock.lock()
+        defer { stateLock.unlock() }
+        return source != nil && !isStopped
+    }
+
     init(
         url: URL,
         openDescriptor: @escaping (String) -> Int32 = { open($0, O_EVTONLY | O_NONBLOCK | O_CLOEXEC) },

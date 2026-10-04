@@ -15,6 +15,36 @@ final class ShelfStore: ObservableObject {
     // File URLs can be read asynchronously by the destination after a drop or
     // Copy. Keep exported temporary content alive for the rest of this session.
     private var exportedContentURLs: Set<URL> = []
+    private var isCheckingPendingMonitors = false
+    private var lastMonitorCheck = Date.distantPast
+    private let makeMonitor: (URL, @escaping () -> Void) -> FileExistenceMonitor
+
+    init(makeMonitor: @escaping (URL, @escaping () -> Void) -> FileExistenceMonitor = {
+        FileExistenceMonitor(url: $0, onUnavailable: $1)
+    }) {
+        self.makeMonitor = makeMonitor
+    }
+
+    func reconcilePendingMonitors() {
+        guard !isCheckingPendingMonitors,
+            Date().timeIntervalSince(lastMonitorCheck) >= 2 else { return }
+        let pending = items.filter { fileMonitors[$0.id]?.isMonitoring != true }
+        guard !pending.isEmpty else { return }
+        isCheckingPendingMonitors = true
+        lastMonitorCheck = Date()
+        // Descriptor opens can remain pending in macOS. A separate metadata
+        // check keeps stale rows from waiting behind those opens indefinitely.
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            let missing = pending.filter { !FileManager.default.fileExists(atPath: $0.url.path) }
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.isCheckingPendingMonitors = false
+                for item in missing where self.items.contains(item) {
+                    self.remove(item)
+                }
+            }
+        }
+    }
 
     @discardableResult
     func add(
@@ -330,9 +360,7 @@ final class ShelfStore: ObservableObject {
     }
 
     private func startMonitoring(_ item: ShelfItem) {
-        let monitor = FileExistenceMonitor(
-            url: item.url
-        ) { [weak self] in
+        let monitor = makeMonitor(item.url) { [weak self] in
             guard let self else { return }
 
             Task { @MainActor in

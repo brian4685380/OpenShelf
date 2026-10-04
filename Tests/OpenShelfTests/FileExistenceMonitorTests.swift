@@ -1,10 +1,35 @@
 import AppKit
 import Darwin
+import Combine
 import XCTest
 @testable import OpenShelf
 
 @MainActor
 final class FileExistenceMonitorTests: XCTestCase {
+    func testMissingFilesAreRemovedEvenWhileWatcherOpenIsPending() throws {
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try Data("fixture".utf8).write(to: file)
+        let gate = DispatchSemaphore(value: 0)
+        let opening = expectation(description: "watcher open started")
+        let store = ShelfStore(makeMonitor: { url, callback in
+            FileExistenceMonitor(url: url, openDescriptor: { _ in
+                opening.fulfill()
+                _ = gate.wait(timeout: .now() + 5)
+                return -1
+            }, onUnavailable: callback)
+        })
+        defer { gate.signal(); store.clear(); try? FileManager.default.removeItem(at: file) }
+        XCTAssertTrue(store.add(url: file))
+        wait(for: [opening], timeout: 3)
+        try FileManager.default.removeItem(at: file)
+        let removed = expectation(description: "missing row reconciled")
+        let observation = store.$items.sink { if $0.isEmpty { removed.fulfill() } }
+        store.reconcilePendingMonitors()
+        wait(for: [removed], timeout: 3)
+        observation.cancel()
+        XCTAssertTrue(store.items.isEmpty)
+    }
+
     func testSlowDescriptorOpenRunsOffMainThreadAndCanBeCancelled() throws {
         let file = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try Data("fixture".utf8).write(to: file)

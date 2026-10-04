@@ -186,6 +186,7 @@ final class FloatingShelfController {
     }
 
     func maintainAlwaysOnTop() {
+        store.reconcilePendingMonitors()
         guard isShelfPresented, let panel else { return }
         guard !isPrimaryMouseButtonPressed else { return }
 
