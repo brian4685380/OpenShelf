@@ -3,7 +3,11 @@ import SwiftUI
 
 @MainActor
 final class FloatingShelfController {
-    private let store = ShelfStore()
+    let id = UUID()
+    let name: String
+    let store = ShelfStore()
+    var onInteraction: (() -> Void)?
+    var onNewShelf: (() -> Void)?
     private let dropState = ShelfDropState()
     private let selection = ShelfSelectionModel()
     private let presentation = ShelfPresentationState()
@@ -22,6 +26,7 @@ final class FloatingShelfController {
     private var isShelfPresented = false
     private var isHoveringShelf = false
     private var isExternalDragActive = false
+    private var pendingDropImports = 0
     private var needsFloatingRefresh = false
     private var needsScreenReposition = false
     private var presentationGeneration: UInt = 0
@@ -39,6 +44,7 @@ final class FloatingShelfController {
     private let interactiveWindowLevel = ShelfWindowPolicy.level
 
     init(
+        name: String = "OpenShelf",
         makePanelKey: @escaping @MainActor (NSPanel) -> Void = {
             $0.makeKeyAndOrderFront(nil)
         },
@@ -53,6 +59,7 @@ final class FloatingShelfController {
             )
         }
     ) {
+        self.name = name
         self.makePanelKey = makePanelKey
         self.primaryMouseButtonPressed = primaryMouseButtonPressed
     }
@@ -76,6 +83,7 @@ final class FloatingShelfController {
         edge: ShelfEdge = .right,
         triggerY: CGFloat? = nil
     ) {
+        onInteraction?()
         cancelHide()
         presentationGeneration &+= 1
         isShelfPresented = true
@@ -129,6 +137,9 @@ final class FloatingShelfController {
     func expand() {
         cancelHide()
         guard isShelfPresented, let panel else { return }
+        // CLI additions and menu activation must not snap an already-open,
+        // manually positioned shelf back to the screen edge.
+        guard isCollapsed else { return }
         isCollapsed = false
         let expanded = frameForExpandedState(on: currentScreen, edge: currentEdge)
         panel.level = interactiveWindowLevel
@@ -149,6 +160,23 @@ final class FloatingShelfController {
                 closeShelf()
             }
         } else {
+            reveal()
+        }
+    }
+
+    func reveal() {
+        onInteraction?()
+        if isShelfPresented {
+            expand()
+            refreshAlwaysOnTop()
+        } else if let panel, panel.frame.width > 0, currentScreen != nil {
+            cancelHide()
+            presentationGeneration &+= 1
+            isShelfPresented = true
+            if needsScreenReposition { repositionOnAvailableScreen() }
+            panel.orderFrontRegardless()
+            showVisibleDropCapture(below: panel, frame: panel.frame)
+        } else {
             show()
         }
     }
@@ -159,6 +187,16 @@ final class FloatingShelfController {
 
     func prepareForTermination() {
         store.cleanUpSession()
+    }
+
+    func disposePanels() {
+        closeShelf()
+        panel?.contentView = nil
+        panel?.close()
+        panel = nil
+        visibleDropCapturePanel?.contentView = nil
+        visibleDropCapturePanel?.close()
+        visibleDropCapturePanel = nil
     }
 
     func refreshAlwaysOnTop() {
@@ -240,7 +278,7 @@ final class FloatingShelfController {
         }
 
         let outcome = ShelfImportOutcome(addedCount: addedCount, skippedCount: urls.count - addedCount)
-        if isShelfPresented { expand() } else { show() }
+        reveal()
         dropState.report(outcome)
         return outcome
     }
@@ -250,12 +288,26 @@ final class FloatingShelfController {
         edge: ShelfEdge,
         triggerY: CGFloat?
     ) {
-        show(on: screen, edge: edge, triggerY: triggerY)
+        if isShelfPresented {
+            if isCollapsed {
+                // Edge capture needs the final hit-test frame immediately,
+                // not an intermediate frame in an expansion animation.
+                show(on: currentScreen, edge: currentEdge, triggerY: currentTriggerY)
+            }
+        } else {
+            show(on: screen, edge: edge, triggerY: triggerY)
+        }
         handleDropTargetChanged(true)
     }
 
     func endEdgeDrag() {
         handleDropTargetChanged(false)
+    }
+
+    func discardEmptyEdgePreview() {
+        // Another destination view in this same shelf may have accepted a
+        // file promise after the cursor left the edge capture window.
+        if store.items.isEmpty && pendingDropImports == 0 && !presentation.isPinned { closeShelf() }
     }
 
     func pauseEdgeDragDuringHideDelay() {
@@ -291,6 +343,11 @@ final class FloatingShelfController {
         return panel.frame
     }
 
+    func expandedShelfFrame() -> NSRect? {
+        guard let frame = visibleShelfFrame() else { return nil }
+        return isCollapsed ? frameForExpandedState(on: currentScreen, edge: currentEdge) : frame
+    }
+
     @discardableResult
     func performEdgeDrop(
         from pasteboard: NSPasteboard,
@@ -298,7 +355,7 @@ final class FloatingShelfController {
         edge: ShelfEdge,
         triggerY: CGFloat?
     ) -> Bool {
-        show(on: screen, edge: edge, triggerY: triggerY)
+        if !isShelfPresented { show(on: screen, edge: edge, triggerY: triggerY) }
         let accepted = importExternalDrop(from: pasteboard)
 
         endEdgeDrag()
@@ -326,6 +383,9 @@ final class FloatingShelfController {
         dropState.setTargeted(false)
         panel.orderOut(nil)
         visibleDropCapturePanel?.orderOut(nil)
+        if isCollapsed {
+            panel.setFrame(frameForExpandedState(on: currentScreen, edge: currentEdge), display: false)
+        }
         isCollapsed = false
 
         print("Shelf closed.")
@@ -367,6 +427,8 @@ final class FloatingShelfController {
             dropState: dropState,
             selection: selection,
             presentation: presentation,
+            title: name,
+            onNewShelf: { [weak self] in self?.onNewShelf?() },
             onTogglePin: { [weak self] in self?.togglePin() },
             onPaste: { [weak self] in _ = self?.pasteFromClipboard() },
             onHoverChanged: { [weak self] isHovering in
@@ -384,6 +446,7 @@ final class FloatingShelfController {
         )
 
         let dropContainer = ShelfDropContainerView(rootView: rootView)
+        dropContainer.hostingView.destinationShelfID = id
         dropContainer.wantsLayer = true
         dropContainer.layer?.backgroundColor = NSColor.clear.cgColor
         dropContainer.layer?.isOpaque = false
@@ -412,7 +475,16 @@ final class FloatingShelfController {
             defer: false
         )
 
-        panel.title = "OpenShelf"
+        panel.title = name
+        panel.isReleasedWhenClosed = false
+        panel.shelfID = id
+        panel.onInteraction = { [weak self] in self?.onInteraction?() }
+        panel.onFrameChanged = { [weak self, weak panel] in
+            guard let self, let panel, self.isShelfPresented, !self.isCollapsed else { return }
+            // Synchronize geometry only. Never reorder drag destinations on
+            // each animation frame or while the user drags a window header.
+            self.visibleDropCapturePanel?.setFrame(panel.frame, display: false)
+        }
         panel.contentView = dropContainer
         panel.registerForShelfDraggedTypes()
         panel.onPaste = { [weak self] in
@@ -456,7 +528,9 @@ final class FloatingShelfController {
             backing: .buffered,
             defer: false
         )
-        capturePanel.title = "OpenShelf Drop Capture"
+        capturePanel.title = "\(name) Drop Capture"
+        capturePanel.identifier = NSUserInterfaceItemIdentifier("\(id.uuidString)-drop-capture")
+        capturePanel.isReleasedWhenClosed = false
         capturePanel.contentView = captureView
         configureFloatingBehavior(for: capturePanel)
         capturePanel.hasShadow = false
@@ -493,6 +567,7 @@ final class FloatingShelfController {
         isHoveringShelf = isHovering
 
         if isHovering {
+            onInteraction?()
             cancelHide()
 
             // The panel is already at the floating level. Reordering a drag
@@ -532,6 +607,7 @@ final class FloatingShelfController {
         dropState.setTargeted(isTargeted)
 
         if isTargeted {
+            onInteraction?()
             // A file drag entered the collapsed tab.
             // Do not wait for the normal mouse-hover event.
             cancelHide()
@@ -561,9 +637,13 @@ final class FloatingShelfController {
     private func importExternalDrop(
         from pasteboard: NSPasteboard
     ) -> Bool {
+        guard ShelfDropSupport.canImport(pasteboard, destinationShelfID: id) else { return false }
+        onInteraction?()
+        pendingDropImports += 1
         let accepted = store.importDroppedPasteboard(pasteboard) {
             [weak self] outcome in
             guard let self else { return }
+            self.pendingDropImports -= 1
 
             self.dropState.report(outcome)
 
@@ -572,7 +652,16 @@ final class FloatingShelfController {
             }
         }
 
+        if accepted, ShelfDropSupport.sourceShelfID(pasteboard) != nil {
+            // The shelves may overlap. Tell the source that this is a real
+            // transfer even if the final cursor is still inside its frame.
+            let type = NSPasteboard.PasteboardType(shelfAcceptedDropPasteboardTypeIdentifier)
+            pasteboard.addTypes([type], owner: nil)
+            pasteboard.setString(id.uuidString, forType: type)
+        }
+
         if !accepted {
+            pendingDropImports -= 1
             dropState.report(
                 ShelfImportOutcome(addedCount: 0, skippedCount: 0)
             )
@@ -888,6 +977,7 @@ final class FloatingShelfController {
         case .open: store.open(selected)
         case .preview: store.quickLook(selected)
         case .togglePin: togglePin()
+        case .newShelf: onNewShelf?()
         case .escape:
             if selection.itemIDs.isEmpty { closeShelf() } else { selection.clear() }
         }
@@ -916,6 +1006,12 @@ final class FloatingShelfController {
 
 final class ShelfPanel: NSPanel {
     private let shelfDropDestination = ShelfPanelDropDestination()
+
+    var shelfID: UUID? {
+        didSet { shelfDropDestination.destinationShelfID = shelfID }
+    }
+    var onInteraction: (() -> Void)?
+    var onFrameChanged: (() -> Void)?
 
     var onPaste: (() -> Bool)?
     var onCommand: ((ShelfKeyboardCommand) -> Bool)?
@@ -963,11 +1059,19 @@ final class ShelfPanel: NSPanel {
     }
 
     override func sendEvent(_ event: NSEvent) {
+        if event.type == .leftMouseDown || event.type == .rightMouseDown || event.type == .keyDown {
+            onInteraction?()
+        }
         if handleShortcut(event) {
             return
         }
 
         super.sendEvent(event)
+    }
+
+    override func setFrame(_ frameRect: NSRect, display flag: Bool) {
+        super.setFrame(frameRect, display: flag)
+        onFrameChanged?()
     }
 
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
@@ -980,6 +1084,7 @@ final class ShelfPanel: NSPanel {
 
     private func handleShortcut(_ event: NSEvent) -> Bool {
         guard let command = ShelfKeyboardCommand(event: event) else { return false }
+        onInteraction?()
         if let onCommand { return onCommand(command) }
         return command == .paste && onPaste?() == true
     }
@@ -988,10 +1093,15 @@ final class ShelfPanel: NSPanel {
 final class ShelfPanelDropDestination: NSObject, NSWindowDelegate,
     NSDraggingDestination
 {
+    var destinationShelfID: UUID?
     var onDropTargetChanged: ((Bool) -> Void)?
     var onPerformDrop: ((NSPasteboard) -> Bool)?
 
     private var isDropTargeted = false
+
+    func windowDidMove(_ notification: Notification) {
+        (notification.object as? ShelfPanel)?.onFrameChanged?()
+    }
 
     func draggingEntered(
         _ sender: NSDraggingInfo
@@ -1032,7 +1142,7 @@ final class ShelfPanelDropDestination: NSObject, NSWindowDelegate,
     func prepareForDragOperation(
         _ sender: NSDraggingInfo
     ) -> Bool {
-        ShelfDropSupport.canImport(sender.draggingPasteboard)
+        ShelfDropSupport.canImport(sender.draggingPasteboard, destinationShelfID: destinationShelfID)
     }
 
     func performDragOperation(
@@ -1052,7 +1162,7 @@ final class ShelfPanelDropDestination: NSObject, NSWindowDelegate,
     func updateDropTarget(
         for pasteboard: NSPasteboard
     ) -> NSDragOperation {
-        guard ShelfDropSupport.canImport(pasteboard) else {
+        guard ShelfDropSupport.canImport(pasteboard, destinationShelfID: destinationShelfID) else {
             clearDropTarget()
             return []
         }
@@ -1062,7 +1172,7 @@ final class ShelfPanelDropDestination: NSObject, NSWindowDelegate,
     }
 
     func performDrop(from pasteboard: NSPasteboard) -> Bool {
-        guard ShelfDropSupport.canImport(pasteboard) else {
+        guard ShelfDropSupport.canImport(pasteboard, destinationShelfID: destinationShelfID) else {
             clearDropTarget()
             return false
         }

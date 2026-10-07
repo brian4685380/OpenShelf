@@ -2,15 +2,26 @@ import AppKit
 
 @MainActor
 final class EdgeTriggerController {
-    private weak var shelfController: FloatingShelfController?
+    private let shelfProvider: (NSScreen, ShelfEdge, CGFloat?) -> FloatingShelfController?
     private var triggerPanels: [NSPanel] = []
     private let canReorderWindows: @MainActor () -> Bool
     private var needsScreenRebuild = false
 
     private let triggerWidth: CGFloat = 12
 
-    init(
+    convenience init(
         shelfController: FloatingShelfController,
+        canReorderWindows: @escaping @MainActor () -> Bool = {
+            !CGEventSource.buttonState(.combinedSessionState, button: .left)
+                && !CGEventSource.buttonState(.combinedSessionState, button: .right)
+        }
+    ) {
+        self.init(shelfProvider: { [weak shelfController] _, _, _ in shelfController },
+                  canReorderWindows: canReorderWindows)
+    }
+
+    init(
+        shelfProvider: @escaping (NSScreen, ShelfEdge, CGFloat?) -> FloatingShelfController?,
         canReorderWindows: @escaping @MainActor () -> Bool = {
             !CGEventSource.buttonState(
                 .combinedSessionState,
@@ -22,7 +33,7 @@ final class EdgeTriggerController {
                 )
         }
     ) {
-        self.shelfController = shelfController
+        self.shelfProvider = shelfProvider
         self.canReorderWindows = canReorderWindows
     }
 
@@ -98,7 +109,7 @@ final class EdgeTriggerController {
         )
 
         let triggerView = EdgeTriggerView(
-            shelfController: shelfController,
+            shelfProvider: shelfProvider,
             screen: screen,
             edge: edge
         )

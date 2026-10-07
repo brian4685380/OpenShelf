@@ -171,7 +171,7 @@ class FileDragSourceView: NSView, NSDraggingSource {
 
         let draggingItems = items.enumerated().map { index, item in
             let draggingItem = NSDraggingItem(
-                pasteboardWriter: ShelfDragPasteboardWriter(item: item)
+                pasteboardWriter: ShelfDragPasteboardWriter(item: item, shelfID: (window as? ShelfPanel)?.shelfID)
             )
 
             let icon = NSWorkspace.shared.icon(
@@ -278,8 +278,11 @@ class FileDragSourceView: NSView, NSDraggingSource {
         let didDropOutsideShelf = window.map {
             !$0.frame.contains(screenPoint)
         } ?? true
+        let destinationID = session.draggingPasteboard.string(forType: .init(shelfAcceptedDropPasteboardTypeIdentifier))
+        let transferredToAnotherShelf = destinationID != nil
+            && destinationID != (window as? ShelfPanel)?.shelfID?.uuidString
         let shouldCompleteDragOut = !operation.isEmpty
-            && didDropOutsideShelf
+            && (didDropOutsideShelf || transferredToAnotherShelf)
 
         if operation.isEmpty {
             print("Drag cancelled or returned to shelf.")
@@ -305,10 +308,13 @@ class FileDragSourceView: NSView, NSDraggingSource {
     }
 
     override func prepareForDragOperation(_ sender: NSDraggingInfo) -> Bool {
-        isReorderDrag(sender)
+        isReorderDrag(sender) || isCrossShelfDrag(sender)
     }
 
     override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        if isCrossShelfDrag(sender) {
+            return (window as? ShelfPanel)?.performDrop(from: sender.draggingPasteboard) ?? false
+        }
         guard isReorderDrag(sender) else {
             return false
         }
@@ -321,6 +327,9 @@ class FileDragSourceView: NSView, NSDraggingSource {
     private func updateReorderTarget(
         _ sender: NSDraggingInfo
     ) -> NSDragOperation {
+        if isCrossShelfDrag(sender) {
+            return (window as? ShelfPanel)?.updateDropTarget(for: sender.draggingPasteboard) ?? []
+        }
         guard isReorderDrag(sender),
             let item
         else {
@@ -332,9 +341,27 @@ class FileDragSourceView: NSView, NSDraggingSource {
     }
 
     private func isReorderDrag(_ sender: NSDraggingInfo) -> Bool {
-        sender.draggingPasteboard.types?.contains(
-            reorderPasteboardType
-        ) == true
+        ShelfDropSupport.isShelfReorder(sender.draggingPasteboard,
+                                        destinationShelfID: (window as? ShelfPanel)?.shelfID)
+    }
+
+    private func isCrossShelfDrag(_ sender: NSDraggingInfo) -> Bool {
+        guard let destinationID = (window as? ShelfPanel)?.shelfID,
+            let sourceID = ShelfDropSupport.sourceShelfID(sender.draggingPasteboard) else { return false }
+        return sourceID != destinationID
+            && ShelfDropSupport.canImport(sender.draggingPasteboard, destinationShelfID: destinationID)
+    }
+
+    override func draggingExited(_ sender: NSDraggingInfo?) {
+        (window as? ShelfPanel)?.clearDropTarget()
+    }
+
+    override func draggingEnded(_ sender: NSDraggingInfo) {
+        (window as? ShelfPanel)?.clearDropTarget()
+    }
+
+    override func concludeDragOperation(_ sender: NSDraggingInfo?) {
+        (window as? ShelfPanel)?.clearDropTarget()
     }
 
     private func updateDirectReorder(with event: NSEvent) {
@@ -541,22 +568,26 @@ private extension NSView {
 
 final class ShelfDragPasteboardWriter: NSObject, NSPasteboardWriting {
     private let item: ShelfItem
+    private let shelfID: UUID?
     private let fileURLPasteboardType =
         NSPasteboard.PasteboardType(UTType.fileURL.identifier)
     private let reorderPasteboardType =
         NSPasteboard.PasteboardType(shelfReorderPasteboardTypeIdentifier)
 
-    init(item: ShelfItem) {
+    init(item: ShelfItem, shelfID: UUID? = nil) {
         self.item = item
+        self.shelfID = shelfID
     }
 
     func writableTypes(
         for pasteboard: NSPasteboard
     ) -> [NSPasteboard.PasteboardType] {
-        [
+        var types = [
             fileURLPasteboardType,
             reorderPasteboardType,
         ]
+        if shelfID != nil { types.append(.init(shelfSourcePasteboardTypeIdentifier)) }
+        return types
     }
 
     func pasteboardPropertyList(
@@ -568,6 +599,9 @@ final class ShelfDragPasteboardWriter: NSObject, NSPasteboardWriting {
 
         case reorderPasteboardType:
             return item.id.uuidString
+
+        case .init(shelfSourcePasteboardTypeIdentifier):
+            return shelfID?.uuidString
 
         default:
             return nil

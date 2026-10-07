@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.8.0 — 2026-10-07
+
+### Added
+
+- Multiple independent shelves with a plain OpenShelf title and separate contents, order, selection, pinning, and floating windows.
+- New Shelf from the menu bar, header + button, or shelf-local ⌘N; a shelf switcher and explicit removal action in the menu bar.
+- Active-shelf CLI routing, filename previews in the shelf menu, and new-shelf creation on screen-edge drags even on occupied edges. Direct content-area drops still add to the shelf under the pointer.
+- Cross-shelf file/group dragging, with independent ownership of imported temporary clips.
+
+### Fixed
+
+- Adding files to an expanded, manually positioned shelf no longer snaps it back to an edge.
+- Keep each full-panel fallback drop destination aligned when its shelf is moved.
+- Copying temporary content between shelves no longer leaves references dependent on the source shelf's lifetime.
+- Edge re-entry during the same drag reuses its preview; canceled empty previews are hidden for reuse without disturbing existing shelves.
+
 ## 0.7.0 — 2026-10-04
 
 ### Added

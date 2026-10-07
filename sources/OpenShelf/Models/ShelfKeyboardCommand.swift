@@ -1,7 +1,7 @@
 import AppKit
 
 enum ShelfKeyboardCommand: Equatable {
-    case selectAll, copy, copyPaths, paste, remove, open, preview, escape, togglePin
+    case selectAll, copy, copyPaths, paste, remove, open, preview, escape, togglePin, newShelf
     case navigate(direction: Int, extending: Bool)
 
     init?(event: NSEvent) {
@@ -16,6 +16,7 @@ enum ShelfKeyboardCommand: Equatable {
             case "v": self = .paste
             case "o": self = .open
             case "p": self = .togglePin
+            case "n": self = .newShelf
             default: return nil
             }
         } else if modifiers == [.command, .option], key == "c" {

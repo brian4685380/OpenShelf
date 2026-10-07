@@ -1,7 +1,7 @@
 import Foundation
 
 public enum OpenShelfVersion {
-    public static let current = "0.7.0"
+    public static let current = "0.8.0"
 }
 
 public enum ShelfCLIArguments: Equatable {
@@ -37,7 +37,8 @@ public enum ShelfCLIArguments: Equatable {
            shelf --help
            shelf --version
 
-    Add files and folders to OpenShelf, launching the app if needed.
+    Add files and folders to the active OpenShelf shelf, launching the app if needed.
+    With multiple shelves, the last shelf you interact with receives the files.
     Relative paths and multiple files are supported. Quote paths with spaces.
     Success is reported only after the app acknowledges the request.
 

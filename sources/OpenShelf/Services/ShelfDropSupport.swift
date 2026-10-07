@@ -39,8 +39,8 @@ enum ShelfDropSupport {
         }
     }()
 
-    static func canImport(_ pasteboard: NSPasteboard) -> Bool {
-        guard !isShelfReorder(pasteboard) else {
+    static func canImport(_ pasteboard: NSPasteboard, destinationShelfID: UUID? = nil) -> Bool {
+        guard !isShelfReorder(pasteboard, destinationShelfID: destinationShelfID) else {
             return false
         }
 
@@ -66,12 +66,19 @@ enum ShelfDropSupport {
         return pasteboard.types?.contains(where: isSupportedType) == true
     }
 
-    static func isShelfReorder(_ pasteboard: NSPasteboard) -> Bool {
-        pasteboard.types?.contains(
+    static func sourceShelfID(_ pasteboard: NSPasteboard) -> UUID? {
+        pasteboard.string(forType: .init(shelfSourcePasteboardTypeIdentifier)).flatMap(UUID.init(uuidString:))
+    }
+
+    static func isShelfReorder(_ pasteboard: NSPasteboard, destinationShelfID: UUID? = nil) -> Bool {
+        let hasReorderType = pasteboard.types?.contains(
             NSPasteboard.PasteboardType(
                 shelfReorderPasteboardTypeIdentifier
             )
         ) == true
+        guard hasReorderType else { return false }
+        guard let destinationShelfID, let sourceID = sourceShelfID(pasteboard) else { return true }
+        return sourceID == destinationShelfID
     }
 
     private static func isSupportedType(

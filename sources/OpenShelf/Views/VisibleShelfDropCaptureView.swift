@@ -21,7 +21,7 @@ final class VisibleShelfDropCaptureView: NSView {
     override func draggingEntered(
         _ sender: NSDraggingInfo
     ) -> NSDragOperation {
-        guard ShelfDropSupport.canImport(sender.draggingPasteboard) else {
+        guard canImport(sender.draggingPasteboard) else {
             return []
         }
 
@@ -40,7 +40,7 @@ final class VisibleShelfDropCaptureView: NSView {
     override func draggingUpdated(
         _ sender: NSDraggingInfo
     ) -> NSDragOperation {
-        ShelfDropSupport.canImport(sender.draggingPasteboard) ? .copy : []
+        canImport(sender.draggingPasteboard) ? .copy : []
     }
 
     override func draggingExited(_ sender: NSDraggingInfo?) {
@@ -50,7 +50,7 @@ final class VisibleShelfDropCaptureView: NSView {
     override func prepareForDragOperation(
         _ sender: NSDraggingInfo
     ) -> Bool {
-        ShelfDropSupport.canImport(sender.draggingPasteboard)
+        canImport(sender.draggingPasteboard)
     }
 
     override func performDragOperation(
@@ -71,5 +71,10 @@ final class VisibleShelfDropCaptureView: NSView {
 
     override func wantsPeriodicDraggingUpdates() -> Bool {
         false
+    }
+
+    private func canImport(_ pasteboard: NSPasteboard) -> Bool {
+        guard let shelfController else { return false }
+        return ShelfDropSupport.canImport(pasteboard, destinationShelfID: shelfController.id)
     }
 }

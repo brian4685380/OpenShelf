@@ -3,8 +3,9 @@ import Darwin
 import ShelfCore
 
 @MainActor
-final class AppDelegate: NSObject, NSApplicationDelegate {
-    private let shelfController = FloatingShelfController()
+final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
+    private lazy var shelfManager = ShelfManager()
+    private let shelvesMenu = NSMenu(title: "Shelves")
     private var edgeTriggerController: EdgeTriggerController?
     private var commandReceiver: ShelfCommandReceiver?
     private var floatingRefreshWorkItems: [DispatchWorkItem] = []
@@ -25,15 +26,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // This prevents OpenShelf from appearing as a normal Dock app.
         NSApp.setActivationPolicy(.accessory)
 
+        // Register hidden native destinations before Finder starts a drag.
+        _ = shelfManager
         setupMenuBarItem()
-        shelfController.preparePanel()
         commandReceiver = ShelfCommandReceiver(
-            shelfController: shelfController
+            addFiles: { [weak self] in self?.shelfManager.addAndShow(urls: $0) }
         )
         commandReceiver?.processPendingRequests()
 
         let triggerController = EdgeTriggerController(
-            shelfController: shelfController
+            shelfProvider: { [weak self] screen, edge, y in
+                self?.shelfManager.shelfForEdge(on: screen, edge: edge, triggerY: y)
+            }
         )
 
         triggerController.start()
@@ -46,7 +50,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
-        shelfController.prepareForTermination()
+        shelfManager.prepareForTermination()
         floatingRefreshWorkItems.forEach { $0.cancel() }
         floatingRefreshWorkItems.removeAll()
         stopFloatingWindowMaintenance()
@@ -62,7 +66,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidChangeScreenParameters(_ notification: Notification) {
         edgeTriggerController?.screenParametersDidChange()
-        shelfController.screenParametersDidChange()
+        shelfManager.shelves.forEach { $0.screenParametersDidChange() }
         refreshFloatingWindows()
     }
 
@@ -85,10 +89,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         let menu = NSMenu()
+        menu.delegate = self
+        menu.addItem(NSMenuItem(title: "New Shelf", action: #selector(newShelf), keyEquivalent: "n"))
+        let shelvesItem = NSMenuItem(title: "Shelves", action: nil, keyEquivalent: "")
+        shelvesItem.submenu = shelvesMenu
+        menu.addItem(shelvesItem)
+        menu.addItem(NSMenuItem.separator())
 
         menu.addItem(
             NSMenuItem(
-                title: "Show / Hide Shelf",
+                title: "Show / Hide Active Shelf",
                 action: #selector(toggleShelf),
                 keyEquivalent: ""
             )
@@ -96,12 +106,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         menu.addItem(
             NSMenuItem(
-                title: "Clear Shelf",
+                title: "Clear Active Shelf",
                 action: #selector(clearShelf),
                 keyEquivalent: ""
             )
         )
 
+        menu.addItem(NSMenuItem(title: "Remove Active Shelf…", action: #selector(removeActiveShelf), keyEquivalent: ""))
         menu.addItem(NSMenuItem.separator())
 
         menu.addItem(
@@ -127,7 +138,44 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
 
         item.menu = menu
+        for menuItem in menu.items where menuItem.action != nil { menuItem.target = self }
         statusItem = item
+    }
+
+    func menuWillOpen(_ menu: NSMenu) {
+        shelvesMenu.removeAllItems()
+        for shelf in shelfManager.shelves {
+            let hidden = shelf.visibleShelfFrame() == nil ? " · hidden" : ""
+            let count = shelf.store.items.count
+            let preview = shelf.store.items.first.map { " — \($0.url.lastPathComponent)" } ?? ""
+            let item = NSMenuItem(title: "\(shelf.name)\(preview) · \(count) \(count == 1 ? "item" : "items")\(hidden)",
+                                 action: #selector(showShelf(_:)), keyEquivalent: "")
+            item.representedObject = shelf.id
+            item.state = shelf === shelfManager.activeShelf ? .on : .off
+            item.target = self
+            shelvesMenu.addItem(item)
+        }
+    }
+
+    @objc private func newShelf() { shelfManager.createShelf() }
+
+    @objc private func showShelf(_ sender: NSMenuItem) {
+        guard let id = sender.representedObject as? UUID,
+            let shelf = shelfManager.shelves.first(where: { $0.id == id }) else { return }
+        shelfManager.show(shelf)
+    }
+
+    @objc private func removeActiveShelf() {
+        guard let shelf = shelfManager.activeShelf else { return }
+        if !shelf.store.items.isEmpty {
+            let alert = NSAlert()
+            alert.messageText = "Remove \(shelf.name)?"
+            alert.informativeText = "This removes its staged entries and temporary clips. Original files are not deleted. Hide the shelf instead to keep its contents."
+            alert.addButton(withTitle: "Cancel")
+            alert.addButton(withTitle: "Remove Shelf")
+            guard alert.runModal() == .alertSecondButtonReturn else { return }
+        }
+        shelfManager.remove(shelf)
     }
 
     @objc private func showKeyboardShortcuts() {
@@ -136,6 +184,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         alert.informativeText = """
         Hover over the shelf to use these shortcuts:
 
+        ⌘N                     Create a new independent shelf
         ↑ / ↓                  Select previous / next item
         ⇧↑ / ⇧↓              Extend or shrink selection
         ⌘A                     Select all
@@ -284,11 +333,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func toggleShelf() {
-        shelfController.toggleShelf()
+        shelfManager.activeShelf.toggleShelf()
     }
 
     @objc private func clearShelf() {
-        shelfController.clearShelf()
+        shelfManager.activeShelf.clearShelf()
     }
 
     @objc private func refreshFloatingWindows() {
@@ -316,13 +365,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func maintainFloatingWindows() {
         refreshEdgeTriggersNow()
-        shelfController.maintainAlwaysOnTop()
+        shelfManager.shelves.forEach { $0.maintainAlwaysOnTop() }
+        shelfManager.prepareNextShelf()
         commandReceiver?.processPendingRequests()
     }
 
     private func refreshFloatingWindowsNow() {
         refreshEdgeTriggersNow()
-        shelfController.refreshAlwaysOnTop()
+        // Restore the active shelf last so its capture window cannot end up
+        // underneath another shelf's invisible destination.
+        shelfManager.shelves.filter { $0 !== shelfManager.activeShelf }.forEach { $0.refreshAlwaysOnTop() }
+        shelfManager.activeShelf.refreshAlwaysOnTop()
     }
 
     private func refreshEdgeTriggersNow() {

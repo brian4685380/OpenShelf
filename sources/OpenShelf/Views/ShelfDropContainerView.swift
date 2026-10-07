@@ -96,6 +96,7 @@ final class ShelfDropContainerView<Content: View>: NSView {
 }
 
 final class ShelfDropHostingView<Content: View>: NSHostingView<Content> {
+    var destinationShelfID: UUID?
     var onDropTargetChanged: ((Bool) -> Void)?
     var onPerformDrop: ((NSPasteboard) -> Bool)?
 
@@ -159,7 +160,7 @@ final class ShelfDropHostingView<Content: View>: NSHostingView<Content> {
     override func prepareForDragOperation(
         _ sender: NSDraggingInfo
     ) -> Bool {
-        ShelfDropSupport.canImport(sender.draggingPasteboard)
+        ShelfDropSupport.canImport(sender.draggingPasteboard, destinationShelfID: destinationShelfID)
     }
 
     override func performDragOperation(
@@ -179,7 +180,7 @@ final class ShelfDropHostingView<Content: View>: NSHostingView<Content> {
     func updateDropTarget(
         for pasteboard: NSPasteboard
     ) -> NSDragOperation {
-        guard ShelfDropSupport.canImport(pasteboard) else {
+        guard ShelfDropSupport.canImport(pasteboard, destinationShelfID: destinationShelfID) else {
             clearDropTarget()
             return []
         }
@@ -189,7 +190,7 @@ final class ShelfDropHostingView<Content: View>: NSHostingView<Content> {
     }
 
     func performDrop(from pasteboard: NSPasteboard) -> Bool {
-        guard ShelfDropSupport.canImport(pasteboard) else {
+        guard ShelfDropSupport.canImport(pasteboard, destinationShelfID: destinationShelfID) else {
             clearDropTarget()
             return false
         }

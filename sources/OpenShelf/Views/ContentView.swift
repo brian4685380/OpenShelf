@@ -6,6 +6,8 @@ struct ContentView: View {
     @ObservedObject var dropState: ShelfDropState
     @StateObject private var selection: ShelfSelectionModel
     @ObservedObject var presentation: ShelfPresentationState
+    let title: String
+    let onNewShelf: () -> Void
     let onTogglePin: () -> Void
     let onPaste: () -> Void
     let onHoverChanged: (Bool) -> Void
@@ -22,6 +24,8 @@ struct ContentView: View {
         dropState: ShelfDropState,
         selection: ShelfSelectionModel? = nil,
         presentation: ShelfPresentationState? = nil,
+        title: String = "OpenShelf",
+        onNewShelf: @escaping () -> Void = {},
         onTogglePin: @escaping () -> Void = {},
         onPaste: @escaping () -> Void = {},
         onHoverChanged: @escaping (Bool) -> Void,
@@ -32,6 +36,8 @@ struct ContentView: View {
         self.store = store
         self.dropState = dropState
         self.presentation = presentation ?? ShelfPresentationState()
+        self.title = title
+        self.onNewShelf = onNewShelf
         self.onTogglePin = onTogglePin
         self.onPaste = onPaste
         _selection = StateObject(
@@ -101,9 +107,10 @@ struct ContentView: View {
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(.secondary)
 
-                    Text("OpenShelf")
+                    Text(title)
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(.primary)
+                        .lineLimit(1)
 
                     Spacer()
                 }
@@ -145,6 +152,16 @@ struct ContentView: View {
                 .accessibilityLabel("Clear shelf")
             }
 
+            Button(action: onNewShelf) {
+                Image(systemName: "plus")
+                    .font(.system(size: 12, weight: .medium))
+                    .frame(width: 20, height: 20)
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+            .help("New shelf (⌘N)")
+            .accessibilityLabel("New shelf")
+
             Button(action: onTogglePin) {
                 Image(systemName: presentation.isPinned ? "pin.fill" : "pin")
                     .font(.system(size: 12, weight: .medium))
@@ -170,7 +187,7 @@ struct ContentView: View {
             }
             .buttonStyle(.plain)
             .foregroundStyle(.secondary)
-            .help("Close shelf")
+            .help("Hide shelf — reopen from the menu bar")
             .accessibilityLabel("Close shelf")
         }
         .frame(height: 20)

@@ -3,18 +3,28 @@ import ShelfCore
 
 @MainActor
 final class ShelfCommandReceiver: NSObject {
-    private weak var shelfController: FloatingShelfController?
+    private let addFiles: ([URL]) -> ShelfImportOutcome?
     private let acknowledgmentName: Notification.Name
     private var completedRequests: [String: ShelfImportOutcome] = [:]
     private var requestOrder: [String] = []
     private let mailbox: ShelfCommandMailbox
-    init(
+    convenience init(
         shelfController: FloatingShelfController,
         notificationName: Notification.Name = ShelfCommandProtocol.addFiles,
         acknowledgmentName: Notification.Name = ShelfCommandProtocol.acknowledged,
         mailbox: ShelfCommandMailbox = ShelfCommandMailbox()
     ) {
-        self.shelfController = shelfController
+        self.init(addFiles: { [weak shelfController] in shelfController?.addAndShow(urls: $0) },
+                  notificationName: notificationName, acknowledgmentName: acknowledgmentName, mailbox: mailbox)
+    }
+
+    init(
+        addFiles: @escaping ([URL]) -> ShelfImportOutcome?,
+        notificationName: Notification.Name = ShelfCommandProtocol.addFiles,
+        acknowledgmentName: Notification.Name = ShelfCommandProtocol.acknowledged,
+        mailbox: ShelfCommandMailbox = ShelfCommandMailbox()
+    ) {
+        self.addFiles = addFiles
         self.acknowledgmentName = acknowledgmentName
         self.mailbox = mailbox
         super.init()
@@ -52,7 +62,7 @@ final class ShelfCommandReceiver: NSObject {
             URL(fileURLWithPath: $0).standardizedFileURL
         }
 
-        guard let outcome = shelfController?.addAndShow(urls: urls) else { return }
+        guard let outcome = addFiles(urls) else { return }
         if let requestID {
             completedRequests[requestID] = outcome
             requestOrder.append(requestID)
@@ -69,7 +79,7 @@ final class ShelfCommandReceiver: NSObject {
             if let cached = completedRequests[request.id] {
                 outcome = cached
             } else {
-                guard let result = shelfController?.addAndShow(urls: request.paths.map { URL(fileURLWithPath: $0) }) else { return }
+                guard let result = addFiles(request.paths.map { URL(fileURLWithPath: $0) }) else { return }
                 outcome = result
                 completedRequests[request.id] = result
                 requestOrder.append(request.id)

@@ -70,6 +70,7 @@ final class ShelfWorkflowTests: XCTestCase {
         XCTAssertEqual(try command("c", modifiers: [.command, .option]), .copyPaths)
         XCTAssertEqual(try command("v", modifiers: .command), .paste)
         XCTAssertEqual(try command("p", modifiers: .command), .togglePin)
+        XCTAssertEqual(try command("n", modifiers: .command), .newShelf)
         XCTAssertEqual(try command("", code: 125, modifiers: [.shift, .function, .numericPad]), .navigate(direction: 1, extending: true))
         XCTAssertEqual(try command(" ", code: 49), .preview)
         XCTAssertEqual(try command("", code: 51), .remove)

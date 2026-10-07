@@ -21,7 +21,7 @@ CI runs the full suite on Apple Silicon. Intel CI builds both products and runs 
 | Directory | Responsibility |
 | --- | --- |
 | `sources/OpenShelf/App` | Menu bar, process lifecycle, workspace observations |
-| `sources/OpenShelf/Controllers` | Shelf/edge panels, focus, collapse and Spaces policy |
+| `sources/OpenShelf/Controllers` | ShelfManager ownership/routing, shelf/edge panels, focus, collapse and Spaces policy |
 | `sources/OpenShelf/Views` | SwiftUI presentation and native drag/selection bridges |
 | `sources/OpenShelf/Models` | Ordered items, selection, keyboard commands, pin state |
 | `sources/OpenShelf/Store` | File references, group actions, import coordination |
@@ -36,6 +36,7 @@ CI runs the full suite on Apple Silicon. Intel CI builds both products and runs 
 - Keep unrelated formatting and generated build files out of the diff.
 - For UI changes, include light/dark screenshots and exercise both an empty shelf and one/two-row shelves.
 - For drag changes, test Finder → visible shelf twice without touching an edge, multi-row reorder, auto-scroll, and drag-out through all four sides.
+- For multi-shelf changes, test direct and cross-shelf drops onto empty shelves and rows, independent selection/pinning, active-shelf CLI delivery, hide/reopen/remove, and temporary-clip survival after the source shelf is cleared. Keep one shared pair of edge triggers per screen, not one pair per shelf.
 - For window changes, test switching apps, Desktops, fullscreen, and disconnecting an external display. Unit tests cannot substitute for WindowServer interaction checks.
 - Never make the shelf take focus or reorder destination windows during a physical drag. `.floating` is intentional: higher levels have broken Finder drops.
 - Removing ordinary file references must never delete the original files. Keep import ownership explicit.

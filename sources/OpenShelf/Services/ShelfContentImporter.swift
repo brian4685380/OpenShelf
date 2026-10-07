@@ -143,6 +143,12 @@ final class ShelfContentImporter {
                 return nil
             }
 
+            // Another shelf owns these temporary clips. Give this shelf its
+            // own copy before the source's rows or session are cleaned up.
+            if isShelfManagedFile(url) {
+                return materializeFile(at: url)
+            }
+
             if preservingTemporaryImages,
                 pasteboardContainsImageRepresentation(pasteboard),
                 isTemporaryFile(url),
@@ -243,6 +249,12 @@ final class ShelfContentImporter {
                 .standardizedFileURL.path
             return filePath == rootPath || filePath.hasPrefix(rootPath + "/")
         }
+    }
+
+    private func isShelfManagedFile(_ url: URL) -> Bool {
+        let root = fileManager.temporaryDirectory.appendingPathComponent("OpenShelf Imports", isDirectory: true)
+            .resolvingSymlinksInPath().standardizedFileURL.path + "/"
+        return url.resolvingSymlinksInPath().standardizedFileURL.path.hasPrefix(root)
     }
 
     private func importedWebLocation(

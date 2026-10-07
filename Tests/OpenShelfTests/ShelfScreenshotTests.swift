@@ -31,20 +31,43 @@ final class ShelfScreenshotTests: XCTestCase {
         for (name, appearance) in [("light", NSAppearance.Name.aqua), ("dark", .darkAqua)] {
             let view = ContentView(store: store, dropState: ShelfDropState(), selection: selection,
                 presentation: presentation, onHoverChanged: { _ in }, onClose: {}, onEmpty: {}, onDragOutCompleted: {})
-            let hosting = NSHostingView(rootView: view)
-            hosting.frame = NSRect(x: 0, y: 0, width: 300, height: 200)
-            let window = NSWindow(contentRect: hosting.frame, styleMask: [.borderless], backing: .buffered, defer: false)
-            window.appearance = NSAppearance(named: appearance)
-            window.contentView = hosting
-            window.isOpaque = false
-            window.backgroundColor = .clear
-            hosting.layoutSubtreeIfNeeded()
-            RunLoop.main.run(until: Date().addingTimeInterval(0.15))
-            let bitmap = try XCTUnwrap(hosting.bitmapImageRepForCachingDisplay(in: hosting.bounds))
-            hosting.cacheDisplay(in: hosting.bounds, to: bitmap)
-            let png = try XCTUnwrap(bitmap.representation(using: .png, properties: [:]))
-            try png.write(to: outputURL.appendingPathComponent("shelf-\(name).png"))
-            window.orderOut(nil)
+            try render(view, size: NSSize(width: 300, height: 200), appearance: appearance,
+                       to: outputURL.appendingPathComponent("shelf-\(name).png"))
         }
+
+        let secondStore = ShelfStore()
+        defer { secondStore.clear() }
+        for name in ["Release notes.md", "Demo.mov"] {
+            let url = directory.appendingPathComponent(name)
+            try Data("Sample content for documentation".utf8).write(to: url)
+            secondStore.add(url: url, isManagedByShelf: true)
+        }
+        let multipleShelves = HStack(spacing: 16) {
+            ContentView(store: store, dropState: ShelfDropState(), selection: selection,
+                presentation: presentation, onHoverChanged: { _ in }, onClose: {}, onEmpty: {}, onDragOutCompleted: {})
+            ContentView(store: secondStore, dropState: ShelfDropState(),
+                onHoverChanged: { _ in }, onClose: {}, onEmpty: {}, onDragOutCompleted: {})
+        }
+        .padding(12)
+        .background(Color(nsColor: .windowBackgroundColor))
+        try render(multipleShelves, size: NSSize(width: 640, height: 224), appearance: .aqua,
+                   to: outputURL.appendingPathComponent("multiple-shelves.png"))
+    }
+
+    private func render<Content: View>(_ view: Content, size: NSSize, appearance: NSAppearance.Name, to url: URL) throws {
+        let hosting = NSHostingView(rootView: view)
+        hosting.frame = NSRect(origin: .zero, size: size)
+        let window = NSWindow(contentRect: hosting.frame, styleMask: [.borderless], backing: .buffered, defer: false)
+        window.appearance = NSAppearance(named: appearance)
+        window.contentView = hosting
+        window.isOpaque = false
+        window.backgroundColor = .clear
+        defer { window.orderOut(nil) }
+        hosting.layoutSubtreeIfNeeded()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.15))
+        let bitmap = try XCTUnwrap(hosting.bitmapImageRepForCachingDisplay(in: hosting.bounds))
+        hosting.cacheDisplay(in: hosting.bounds, to: bitmap)
+        let png = try XCTUnwrap(bitmap.representation(using: .png, properties: [:]))
+        try png.write(to: url)
     }
 }

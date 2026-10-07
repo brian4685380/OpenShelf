@@ -5,7 +5,7 @@
 <h1 align="center">OpenShelf</h1>
 
 <p align="center"><strong>A little space between pick up and put down.</strong></p>
-<p align="center">A native, open-source file shelf for macOS. Collect. Arrange. Drop anywhere.</p>
+<p align="center">Native, open-source floating shelves for macOS. Collect. Arrange. Drop anywhere.</p>
 
 <p align="center">
   <a href="https://github.com/brian4685380/OpenShelf/releases/latest"><img src="https://img.shields.io/github/v/release/brian4685380/OpenShelf?color=307AFF" alt="Latest release"></a>
@@ -17,6 +17,7 @@
 <p align="center">
   <a href="https://github.com/brian4685380/OpenShelf/releases/latest">Download</a> ·
   <a href="#install">Install</a> ·
+  <a href="#multiple-shelves">Multiple shelves</a> ·
   <a href="#keyboard-first-too">Shortcuts</a> ·
   <a href="CHANGELOG.md">What's new</a> ·
   <a href="CONTRIBUTING.md">Contribute</a>
@@ -30,8 +31,9 @@
 
 ## Your next move, within reach
 
-Drag a file to either screen edge and OpenShelf appears. Collect a few more, switch apps, then drag them to their destination. If the shelf is already open, drop directly onto it—no trip back to the screen edge.
+Drag files to either screen edge to start a shelf. Drop more onto that shelf to collect them, or drag to the screen edge again to start another. Keep independent groups at hand, switch apps, then drag each group to its destination.
 
+- **Room for separate workflows.** Keep multiple shelves open, each with its own files, selection, ordering, and pin state. Move groups between shelves without mixing the others.
 - **More than files.** Collect folders, browser images, selected text, and links. Paste from the clipboard or send files from Terminal.
 - **Familiar selection.** Command-click, Shift-click, or drag through blank space to select a group. Drag back to shrink the selection.
 - **Your order.** Reorder rows and groups with an insertion guide and edge auto-scrolling. Continue past any shelf edge to drag files out.
@@ -54,7 +56,7 @@ open /Applications/OpenShelf.app
 
 The [Homebrew tap](https://github.com/brian4685380/homebrew-openshelf) also installs the `shelf` command.
 
-To update, quit OpenShelf first, then:
+To update, save any temporary clips and quit OpenShelf first; shelf contents are session-only. Then:
 
 ```sh
 brew update
@@ -70,9 +72,27 @@ Download the DMG from [the latest release](https://github.com/brian4685380/OpenS
 
 DMG users can install the optional command from **OpenShelf menu → Install CLI Tool…**. It creates a symlink in `/usr/local/bin` and asks for administrator approval. Homebrew users do not need this step.
 
-## Three ways in, one shelf
+## Multiple shelves
 
-1. **Drag:** reach either screen edge to reveal the shelf; once visible, its entire content area accepts drops.
+New in **v0.8.0**: keep independent collections open at the same time.
+
+<p align="center">
+  <img src="docs/images/multiple-shelves.png" width="720" alt="Two independent OpenShelf shelves with separate file groups, selection, and pin state">
+</p>
+<p align="center"><sub>Actual shelf views rendered side by side with sample content.</sub></p>
+
+- Click **+** in a shelf header, choose **New Shelf** from the menu bar, or press **⌘N** while a shelf has focus.
+- Every shelf uses the plain **OpenShelf** title and has its own contents, ordering, selection, and pin state. Shelves created with **+** use separate screen-edge positions when space is available; drag their headers to position them yourself.
+- Drag files between shelves to transfer their entries. Temporary text/image clips get an independent copy so clearing the source shelf cannot break the destination.
+- The **Shelves** menu lists every shelf with a preview of its first filename and marks the active one. Select a shelf there to reopen it. **×** hides a shelf without clearing it; **Remove Active Shelf…** removes it, with confirmation if it contains items.
+- `shelf <files…>` adds to the last shelf you hovered over, clicked, dropped onto, created, or selected from the menu. Paste goes to the focused shelf. Drops go to the shelf under the pointer.
+- Each new drag to the screen edge starts an empty shelf, even when another shelf is already on that edge. Existing shelves and their contents stay untouched; drop onto a visible shelf's content area to add to that shelf instead. Leaving and re-entering during the same drag reuses its preview, and a canceled empty preview is hidden for reuse.
+
+All shelves remain session-only. Save temporary clips before quitting.
+
+## Three ways in
+
+1. **Drag:** reach either screen edge to start an empty shelf, or drop onto an existing shelf's content area to add to it.
 2. **Paste:** hover over the shelf and press **⌘V**, or use **Paste from Clipboard** in an empty shelf.
 3. **Terminal:**
 
@@ -92,6 +112,7 @@ Hover over the shelf to use its shortcuts. These are shelf-local, not global key
 
 | Shortcut | Action |
 | --- | --- |
+| ⌘N | New independent shelf |
 | ↑ / ↓ | Select previous / next item; scroll it into view |
 | ⇧↑ / ⇧↓ | Extend or shrink the selection |
 | ⌘A | Select all |
