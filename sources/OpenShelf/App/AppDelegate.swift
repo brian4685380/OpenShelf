@@ -365,7 +365,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc private func maintainFloatingWindows() {
         refreshEdgeTriggersNow()
-        shelfManager.shelves.forEach { $0.maintainAlwaysOnTop() }
+        shelfManager.maintainAlwaysOnTop()
         shelfManager.prepareNextShelf()
         commandReceiver?.processPendingRequests()
     }

@@ -217,16 +217,16 @@ final class FloatingShelfController {
         if needsScreenReposition {
             repositionOnAvailableScreen()
         }
-        configureFloatingBehavior(for: panel)
-        panel.orderFrontRegardless()
-        showVisibleDropCapture(below: panel, frame: panel.frame)
+        ShelfWindowPolicy.orderOnActiveSpace(panel)
+        showVisibleDropCapture(below: panel, frame: panel.frame, recoveringSpace: true)
         needsFloatingRefresh = false
     }
 
-    func maintainAlwaysOnTop() {
+    @discardableResult
+    func maintainAlwaysOnTop() -> Bool {
         store.reconcilePendingMonitors()
-        guard isShelfPresented, let panel else { return }
-        guard !isPrimaryMouseButtonPressed else { return }
+        guard isShelfPresented, let panel else { return false }
+        guard !isPrimaryMouseButtonPressed else { return false }
 
         // A Space transition can interrupt the destination's draggingExited/
         // draggingEnded callbacks. A released physical mouse button is the
@@ -237,9 +237,14 @@ final class FloatingShelfController {
 
         // Retry work skipped during a drag, or recover a panel displaced by
         // WindowServer. Do not reorder a healthy shelf on every timer tick.
-        if needsFloatingRefresh || !panel.isVisible || !panel.isOnActiveSpace {
+        let captureNeedsRecovery = !isCollapsed && visibleDropCapturePanel.map {
+            ShelfWindowPolicy.needsRecovery($0) || $0.frame != panel.frame
+        } == true
+        if needsFloatingRefresh || ShelfWindowPolicy.needsRecovery(panel) || captureNeedsRecovery {
             refreshAlwaysOnTop()
+            return true
         }
+        return false
     }
 
     func screenParametersDidChange() {
@@ -543,7 +548,8 @@ final class FloatingShelfController {
 
     private func showVisibleDropCapture(
         below panel: NSPanel,
-        frame: NSRect
+        frame: NSRect,
+        recoveringSpace: Bool = false
     ) {
         guard isShelfPresented, !isCollapsed,
             let capturePanel = visibleDropCapturePanel
@@ -555,7 +561,11 @@ final class FloatingShelfController {
         panel.level = interactiveWindowLevel
         configureFloatingBehavior(for: capturePanel)
         capturePanel.setFrame(frame, display: false)
-        capturePanel.order(.below, relativeTo: panel.windowNumber)
+        if recoveringSpace {
+            ShelfWindowPolicy.orderOnActiveSpace(capturePanel, below: panel)
+        } else {
+            capturePanel.order(.below, relativeTo: panel.windowNumber)
+        }
     }
 
     private func configureFloatingBehavior(for panel: NSPanel) {

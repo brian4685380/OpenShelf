@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.1 — 2026-10-20
+
+### Fixed
+
+- Recover stale Desktop/fullscreen Space membership instead of only reordering a stranded floating window. Repair shelf and drop-capture state independently, without reordering during a file drag or raising the window above the interactive floating level.
+- Preserve the active shelf's stacking order when multiple shelves recover after a Desktop transition.
+
 ## 0.8.0 — 2026-10-07
 
 ### Added

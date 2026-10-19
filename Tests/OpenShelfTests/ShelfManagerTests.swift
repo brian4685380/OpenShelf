@@ -52,6 +52,41 @@ final class ShelfManagerTests: XCTestCase {
         XCTAssertTrue(urls.allSatisfy { FileManager.default.fileExists(atPath: $0.path) })
     }
 
+    func testRecoveryPreservesActiveShelfAboveOtherShelvesAndTheirCaptures() throws {
+        let previousPolicy = NSApp.activationPolicy()
+        NSApp.setActivationPolicy(.accessory)
+        defer { NSApp.setActivationPolicy(previousPolicy) }
+        let manager = ShelfManager()
+        defer { manager.prepareForTermination() }
+        let active = manager.activeShelf!
+        manager.show(active)
+        let background = manager.createShelf()
+        manager.show(active)
+        let activePanel = try panel(active)
+        let backgroundPanel = try panel(background)
+        backgroundPanel.setFrame(activePanel.frame, display: false)
+        backgroundPanel.level = .normal
+        let frame = activePanel.frame
+
+        manager.maintainAlwaysOnTop()
+        let rendered = expectation(description: "WindowServer has committed window ordering")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { rendered.fulfill() }
+        wait(for: [rendered], timeout: 1)
+
+        XCTAssertTrue(manager.activeShelf === active)
+        XCTAssertEqual(activePanel.frame, frame)
+        XCTAssertEqual(backgroundPanel.level, .floating)
+        let capture = try XCTUnwrap(NSApp.windows.first {
+            $0.identifier?.rawValue == "\(active.id.uuidString)-drop-capture"
+        })
+        let order = CGWindowListCopyWindowInfo(.optionOnScreenOnly, kCGNullWindowID) as? [[String: Any]] ?? []
+        let ids = order.compactMap { $0[kCGWindowNumber as String] as? Int }
+        XCTAssertLessThan(try XCTUnwrap(ids.firstIndex(of: activePanel.windowNumber)),
+                          try XCTUnwrap(ids.firstIndex(of: capture.windowNumber)))
+        XCTAssertLessThan(try XCTUnwrap(ids.firstIndex(of: capture.windowNumber)),
+                          try XCTUnwrap(ids.firstIndex(of: backgroundPanel.windowNumber)))
+    }
+
     func testCLIUsesActiveShelfWithoutMovingAnyExpandedWindow() throws {
         let manager = ShelfManager()
         defer { manager.prepareForTermination() }

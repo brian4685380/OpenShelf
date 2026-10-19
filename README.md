@@ -42,6 +42,8 @@ Drag files to either screen edge to start a shelf. Drop more onto that shelf to 
 
 OpenShelf lives in the menu bar, not the Dock.
 
+**v0.8.1** improves floating-window recovery after Desktop/fullscreen switches, including drop targets and the stacking order of multiple shelves. See the [release notes](docs/releases/v0.8.1.md).
+
 ## Install
 
 **macOS 13+ · Apple Silicon.** Intel users can build from source; the downloadable app and Homebrew cask currently target arm64.

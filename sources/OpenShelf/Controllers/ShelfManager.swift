@@ -48,6 +48,19 @@ final class ShelfManager {
         shelf.reveal()
     }
 
+    func maintainAlwaysOnTop() {
+        var restoredBackgroundShelf = false
+        for shelf in shelves where shelf !== activeShelf {
+            if shelf.maintainAlwaysOnTop() { restoredBackgroundShelf = true }
+        }
+        let restoredActiveShelf = activeShelf.maintainAlwaysOnTop()
+        if restoredBackgroundShelf && !restoredActiveShelf {
+            // A repaired background shelf (and its invisible drop capture)
+            // must not cover the shelf the user was last interacting with.
+            activeShelf.refreshAlwaysOnTop()
+        }
+    }
+
     func remove(_ shelf: FloatingShelfController) {
         guard shelves.contains(where: { $0 === shelf }) else { return }
         shelf.disposePanels()

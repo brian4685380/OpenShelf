@@ -82,8 +82,7 @@ final class EdgeTriggerController {
         }
 
         for panel in triggerPanels {
-            configureFloatingBehavior(for: panel)
-            panel.orderFrontRegardless()
+            ShelfWindowPolicy.orderOnActiveSpace(panel)
         }
     }
 

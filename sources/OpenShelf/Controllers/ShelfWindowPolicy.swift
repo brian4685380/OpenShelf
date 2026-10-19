@@ -24,4 +24,35 @@ enum ShelfWindowPolicy {
             panel.collectionBehavior = collectionBehavior
         }
     }
+
+    static func needsRecovery(_ panel: NSPanel) -> Bool {
+        !panel.isVisible || !panel.isOnActiveSpace
+            || !panel.isFloatingPanel || panel.level != level
+            || panel.hidesOnDeactivate || panel.collectionBehavior != collectionBehavior
+    }
+
+    /// Call only when no native drag is in progress. Ordering an already
+    /// ordered-in window frontmost does not repair stale Space membership.
+    /// Temporarily move an affected panel to the current Space, then restore
+    /// its all-Spaces role. Never activate the application or make it key.
+    static func orderOnActiveSpace(_ panel: NSPanel, below parent: NSPanel? = nil) {
+        apply(to: panel)
+        let mustRejoinSpace = !panel.isOnActiveSpace
+        if mustRejoinSpace {
+            print("Recovering floating window on active Space:", panel.title)
+            panel.orderOut(nil)
+            // These two flags are mutually exclusive. Keep the fullscreen /
+            // all-applications roles throughout the recovery.
+            panel.collectionBehavior = collectionBehavior
+                .subtracting(.canJoinAllSpaces).union(.moveToActiveSpace)
+        }
+
+        if let parent {
+            panel.order(.below, relativeTo: parent.windowNumber)
+        } else {
+            panel.orderFrontRegardless()
+        }
+
+        if mustRejoinSpace { apply(to: panel) }
+    }
 }

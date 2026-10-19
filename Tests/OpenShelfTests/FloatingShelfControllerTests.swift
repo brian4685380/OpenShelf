@@ -312,7 +312,78 @@ final class FloatingShelfControllerTests: XCTestCase {
 
         panel.level = .normal
         controller.maintainAlwaysOnTop()
-        XCTAssertEqual(panel.level, .normal, "Do not continually reorder after the retry succeeds")
+        XCTAssertEqual(panel.level, .floating, "Recover drift even without another workspace notification")
+    }
+
+    func testMaintenanceRepairsCaptureEvenWhenShelfStillLooksHealthy() throws {
+        _ = NSApplication.shared
+        var mouseDown = false
+        let controller = FloatingShelfController(primaryMouseButtonPressed: { mouseDown })
+        controller.show()
+        defer { controller.disposePanels() }
+        let panel = try XCTUnwrap(openShelfPanel())
+        let capture = try XCTUnwrap(NSApp.windows.first {
+            $0.identifier?.rawValue == "\(controller.id.uuidString)-drop-capture"
+        })
+        let frame = panel.frame
+        capture.orderOut(nil)
+        capture.level = .normal
+        capture.collectionBehavior = [.managed]
+
+        mouseDown = true
+        controller.maintainAlwaysOnTop()
+        XCTAssertFalse(capture.isVisible, "Do not replace a destination during a drag")
+
+        mouseDown = false
+        controller.maintainAlwaysOnTop()
+        XCTAssertTrue(capture.isVisible)
+        XCTAssertEqual(capture.level, .floating)
+        XCTAssertEqual(capture.collectionBehavior, ShelfWindowPolicy.collectionBehavior)
+        XCTAssertEqual(capture.frame, frame)
+        XCTAssertEqual(panel.frame, frame)
+        XCTAssertFalse(panel.isKeyWindow, "Recovery must not activate the shelf")
+    }
+
+    func testMaintenanceRepairsSpacePolicyWithoutAnActivationNotification() throws {
+        _ = NSApplication.shared
+        let controller = FloatingShelfController(primaryMouseButtonPressed: { false })
+        controller.show()
+        defer { controller.disposePanels() }
+        let panel = try XCTUnwrap(openShelfPanel() as? NSPanel)
+        panel.collectionBehavior = [.managed]
+        panel.hidesOnDeactivate = true
+
+        controller.maintainAlwaysOnTop()
+
+        XCTAssertEqual(panel.collectionBehavior, ShelfWindowPolicy.collectionBehavior)
+        XCTAssertFalse(panel.hidesOnDeactivate)
+    }
+
+    func testHealthyShelfMaintenanceDoesNotReorderEveryHeartbeat() throws {
+        _ = NSApplication.shared
+        let previousPolicy = NSApp.activationPolicy()
+        NSApp.setActivationPolicy(.accessory)
+        defer { NSApp.setActivationPolicy(previousPolicy) }
+        let controller = FloatingShelfController(primaryMouseButtonPressed: { false })
+        controller.show()
+        defer { controller.disposePanels() }
+        let panel = try XCTUnwrap(openShelfPanel())
+        let window = NSPanel(contentRect: panel.frame,
+            styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        defer { window.close() }
+        window.level = .floating
+        window.orderFrontRegardless()
+        let rendered = expectation(description: "WindowServer has committed window ordering")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { rendered.fulfill() }
+        wait(for: [rendered], timeout: 1)
+
+        XCTAssertFalse(controller.maintainAlwaysOnTop())
+        XCTAssertFalse(controller.maintainAlwaysOnTop())
+        let order = CGWindowListCopyWindowInfo(.optionOnScreenOnly, kCGNullWindowID) as? [[String: Any]] ?? []
+        let ids = order.compactMap { $0[kCGWindowNumber as String] as? Int }
+        XCTAssertLessThan(try XCTUnwrap(ids.firstIndex(of: window.windowNumber)),
+                          try XCTUnwrap(ids.firstIndex(of: panel.windowNumber)))
     }
 
     func testInterruptedDragDoesNotPermanentlyBlockSpaceRefresh() throws {

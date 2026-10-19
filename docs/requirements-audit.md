@@ -242,3 +242,44 @@ it through Homebrew are final release gates.
 The currently attached-display set was covered by native panel tests. The
 multi-display implementation creates left and right trigger panels for every
 entry in `NSScreen.screens` and rebuilds them when screen parameters change.
+
+## Recurring Desktop/fullscreen recovery (2026-10-20, v0.8.1)
+
+The reported recurrence is on Desktop/fullscreen switches. The running
+`/Applications/OpenShelf.app` was verified as the released 0.8.0 binary, not an
+older installation. The prior flags and workspace observers were still present.
+
+Recovery now explicitly reattaches a window that reports it is on a different
+Space, temporarily using `moveToActiveSpace` and then restoring `canJoinAllSpaces`.
+Those flags are never combined. This applies to the shelf, its full-content
+drop capture, and edge triggers, only after any physical file drag has ended.
+Maintenance also checks floating policy and drop-capture health independently;
+a background shelf's recovery restores the active shelf above it. Healthy
+shelves are not reordered on each heartbeat. Window level stays `.floating`.
+
+Validation:
+
+- Three regression tests failed against the previous maintenance code (six
+  assertions), then passed with the fix.
+- Full suite: 118 tests, 117 passed, one opt-in screenshot test skipped.
+- Release build succeeds; native WindowServer ordering tests verify capture
+  below its shelf and active shelf above a recovered background shelf.
+- Simulated stale-Space tests verify the detach/rejoin protocol, final flags,
+  unchanged frame, and no key-focus activation. Existing drag/paste, collapsed
+  shelf, deferred recovery, and closed-shelf tests continue to pass.
+- A separate two-panel live probe was used without restarting the installed
+  app. No actual Space-change notification was observed from the attempted
+  automated Desktop shortcut, so this is **not** proof of real Desktop or
+  cross-app fullscreen recovery. Physical verification remains required.
+
+Before release, run the new build and pin two shelves, repeatedly switch
+Desktops and enter/leave another app's fullscreen Space, then confirm both
+remain reachable. Check collapsed tabs and edge triggers as well. Drop files
+directly onto each shelf after switching, use Command-V, and repeat with a
+file drag spanning a Space change. Do not replace the installed app until
+session-only staged clipboard content has been saved.
+
+The user subsequently confirmed the fix with “LGTM” and requested release and
+installation as 0.8.1. This is user acceptance, not a claim that automated
+Desktop/fullscreen switching succeeded. The user also confirmed it is safe to
+restart the app for installation.
