@@ -283,3 +283,40 @@ The user subsequently confirmed the fix with “LGTM” and requested release an
 installation as 0.8.1. This is user acceptance, not a claim that automated
 Desktop/fullscreen switching succeeded. The user also confirmed it is safe to
 restart the app for installation.
+
+Release completion: GitHub CI [39284393483](https://github.com/brian4685380/OpenShelf/actions/runs/39284393483)
+passed on arm64 and Intel for commit `5934a1b`. Tag/release `v0.8.1` was published,
+and downloaded ZIP/DMG checksums matched the packaged artifacts. The existing
+Homebrew tap was updated at `69d50f2`; style, audit, and checksum-verified fetch
+passed. Homebrew upgraded `/Applications/OpenShelf.app` to 0.8.1 and linked the
+bundled CLI. Cold and hot CLI additions reported one added item each; a repeated
+input reported zero added / one skipped. Disposable test files were removed,
+and the installed release was left running. Remote-import changes below were
+developed separately and are not part of the 0.8.1 release artifacts.
+
+## Remote CLI imports — v0.9.0 (2026-10-20)
+
+- `[user@]host:path` downloads through the system SCP/SFTP client into private
+  per-source UUID directories, then submits local paths to the active shelf.
+  Normal SSH configuration and authentication are retained. There is no remote
+  mutation or deletion path. Introduced in version 0.9.0.
+- Temporary ownership is explicit in the mailbox request and acknowledgment.
+  The app rejects originals outside the managed root, relative ownership paths,
+  and top-level symlinks. Old replies cannot claim ownership; uncertain delivery
+  retains downloaded copies and prints recovery paths instead of deleting files
+  that the app may already be using.
+- All arguments are validated before transfers. All transfers complete before
+  UI delivery. Download failures and Ctrl-C clean up that command's partial
+  data. Files with equal basenames from separate sources stay isolated.
+- Ten new tests cover parsing, private storage, mixed inputs, failures,
+  cancellation cleanup, real SCP/SFTP file and directory transfers over a local
+  fixture-server pipe, ownership validation, active-shelf routing, retry safety,
+  export lifetime, and cross-shelf copies. The full suite has 127 passing tests
+  and one optional screenshot skip; the release configuration builds.
+- A separate terminal probe interrupted a real blocked SCP process with Ctrl-C:
+  it exited 130 and reported zero remaining transfer directories. No SSH keys,
+  known_hosts entries, remote hosts, or user files were used by these tests.
+- Authentication against a user's configured SSH server remains a manual check;
+  use the matching v0.9.0 app and CLI, restarting the app after upgrading.
+- The user accepted the feature with “LGTM” and requested release as v0.9.0.
+  This acceptance does not imply automated testing against a real SSH host.

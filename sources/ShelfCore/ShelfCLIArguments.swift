@@ -1,7 +1,7 @@
 import Foundation
 
 public enum OpenShelfVersion {
-    public static let current = "0.8.1"
+    public static let current = "0.9.0"
 }
 
 public enum ShelfCLIArguments: Equatable {
@@ -34,21 +34,28 @@ public enum ShelfCLIArguments: Equatable {
 
     public static let usage = """
     Usage: shelf [--] <file-or-folder> [...]
+           shelf [user@]host:<remote-file-or-folder> [...]
            shelf --help
            shelf --version
 
     Add files and folders to the active OpenShelf shelf, launching the app if needed.
     With multiple shelves, the last shelf you interact with receives the files.
     Relative paths and multiple files are supported. Quote paths with spaces.
+    Remote files/folders are downloaded with scp using your SSH configuration.
+    Downloads are temporary local copies; remote originals are never removed.
+    All transfers finish before the request is sent. Local and remote inputs
+    may be mixed. Use ./ for a local filename containing a colon.
     Success is reported only after the app acknowledges the request.
 
     Examples:
       shelf ~/Desktop/report.pdf ~/Downloads/photos
       shelf "Design notes.txt"
       shelf -- -draft.txt
+      shelf myserver:/home/me/report.pdf
+      shelf "user@myserver:projects/Design notes" ./local.txt
 
     Exit codes: 0 received, 64 usage, 66 missing file, 69 app unavailable,
-                75 acknowledgment timed out.
+                74 transfer/I/O failure, 75 delivery not confirmed, 130 interrupted.
     """
 }
 

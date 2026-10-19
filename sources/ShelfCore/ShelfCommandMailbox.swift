@@ -7,10 +7,12 @@ public final class ShelfCommandMailbox {
     public struct Request: Codable {
         public let id: String
         public let paths: [String]
+        public let temporaryPaths: [String]?
         public let createdAt: Date
-        public init(id: String = UUID().uuidString, paths: [String], createdAt: Date = Date()) {
+        public init(id: String = UUID().uuidString, paths: [String], createdAt: Date = Date(), temporaryPaths: [String]? = nil) {
             self.id = id
             self.paths = paths
+            self.temporaryPaths = temporaryPaths
             self.createdAt = createdAt
         }
     }
@@ -18,9 +20,11 @@ public final class ShelfCommandMailbox {
     public struct Reply: Codable, Equatable {
         public let addedCount: Int
         public let skippedCount: Int
-        public init(addedCount: Int, skippedCount: Int) {
+        public let temporaryFilesAccepted: Bool?
+        public init(addedCount: Int, skippedCount: Int, temporaryFilesAccepted: Bool? = nil) {
             self.addedCount = addedCount
             self.skippedCount = skippedCount
+            self.temporaryFilesAccepted = temporaryFilesAccepted
         }
     }
 

@@ -1,6 +1,6 @@
 cask "openshelf" do
-  version "0.8.1"
-  sha256 "1a1d82f287543f1128f21f9a2f3bb6f1985f2e0c0a40a0b624e090fb1350e31f"
+  version "0.9.0"
+  sha256 "864687b6b9108a8bde2145963e46f38836500658f1cd458a106d1b0a705fcd51"
 
   url "https://github.com/brian4685380/OpenShelf/releases/download/v#{version}/OpenShelf-v#{version}-macOS.zip"
   name "OpenShelf"

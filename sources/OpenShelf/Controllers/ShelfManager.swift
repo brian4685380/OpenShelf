@@ -104,8 +104,8 @@ final class ShelfManager {
     }
 
     @discardableResult
-    func addAndShow(urls: [URL]) -> ShelfImportOutcome {
-        activeShelf.addAndShow(urls: urls)
+    func addAndShow(urls: [URL], temporaryURLs: Set<URL> = []) -> ShelfImportOutcome {
+        activeShelf.addAndShow(urls: urls, temporaryURLs: temporaryURLs)
     }
 
     func prepareForTermination() {

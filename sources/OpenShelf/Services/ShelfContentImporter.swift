@@ -1,5 +1,6 @@
 import AppKit
 import Foundation
+import ShelfCore
 import UniformTypeIdentifiers
 
 struct ImportedShelfContent {
@@ -255,6 +256,7 @@ final class ShelfContentImporter {
         let root = fileManager.temporaryDirectory.appendingPathComponent("OpenShelf Imports", isDirectory: true)
             .resolvingSymlinksInPath().standardizedFileURL.path + "/"
         return url.resolvingSymlinksInPath().standardizedFileURL.path.hasPrefix(root)
+            || ShelfRemoteFiles.containsManagedFile(url)
     }
 
     private func importedWebLocation(

@@ -18,6 +18,7 @@
   <a href="https://github.com/brian4685380/OpenShelf/releases/latest">Download</a> ·
   <a href="#install">Install</a> ·
   <a href="#multiple-shelves">Multiple shelves</a> ·
+  <a href="#remote-files-over-ssh">Remote files</a> ·
   <a href="#keyboard-first-too">Shortcuts</a> ·
   <a href="CHANGELOG.md">What's new</a> ·
   <a href="CONTRIBUTING.md">Contribute</a>
@@ -34,7 +35,7 @@
 Drag files to either screen edge to start a shelf. Drop more onto that shelf to collect them, or drag to the screen edge again to start another. Keep independent groups at hand, switch apps, then drag each group to its destination.
 
 - **Room for separate workflows.** Keep multiple shelves open, each with its own files, selection, ordering, and pin state. Move groups between shelves without mixing the others.
-- **More than files.** Collect folders, browser images, selected text, and links. Paste from the clipboard or send files from Terminal.
+- **More than files.** Collect folders, browser images, selected text, and links. Paste from the clipboard or send local and remote files from Terminal.
 - **Familiar selection.** Command-click, Shift-click, or drag through blank space to select a group. Drag back to shrink the selection.
 - **Your order.** Reorder rows and groups with an insertion guide and edge auto-scrolling. Continue past any shelf edge to drag files out.
 - **There when you need it.** Available across windows, Desktops, and fullscreen apps. Collapse to an edge tab, or pin the shelf expanded.
@@ -42,7 +43,7 @@ Drag files to either screen edge to start a shelf. Drop more onto that shelf to 
 
 OpenShelf lives in the menu bar, not the Dock.
 
-**v0.8.1** improves floating-window recovery after Desktop/fullscreen switches, including drop targets and the stacking order of multiple shelves. See the [release notes](docs/releases/v0.8.1.md).
+**v0.9.0** brings remote files to your shelf: run `shelf myserver:/path/to/file` to download a temporary local copy using your SSH configuration. Files and directories go to the active shelf; remote originals stay untouched. See the [release notes](docs/releases/v0.9.0.md).
 
 ## Install
 
@@ -102,11 +103,30 @@ All shelves remain session-only. Save temporary clips before quitting.
    shelf ~/Desktop/report.pdf ~/Downloads/photos
    shelf "Design notes.txt"
    shelf -- -draft.txt
+   shelf myserver:/home/me/report.pdf
    ```
 
-The CLI launches OpenShelf if necessary, validates all paths before sending, and waits for the app to confirm receipt. `shelf --help` shows usage and exit codes; `shelf --version` reports the version. After upgrading, restart the app so the CLI and running app match.
+The CLI launches OpenShelf if necessary, validates local paths and completes remote downloads before sending, and waits for the app to confirm receipt. `shelf --help` shows usage and exit codes; `shelf --version` reports the version. After upgrading, restart the app so the CLI and running app match.
 
 Requests use a private, short-lived local queue; notifications only wake the app. The shelf checks pending requests too, so a missed notification does not lose an addition. If the app cannot confirm receipt within five seconds, the CLI exits with an error rather than reporting success.
+
+### Remote files over SSH
+
+New in **v0.9.0**: use SCP-style sources to bring remote files or directories into the active shelf. You can mix remote sources and local paths in one command, and OpenShelf does not need to be open beforehand.
+
+```sh
+shelf myserver:/home/me/report.pdf
+shelf user@myserver:projects/photos
+shelf "myserver:projects/Design notes.txt" ./local-file.txt
+```
+
+- Downloads a **local temporary copy** and adds it to the active shelf, opening the app/shelf when needed. Directories are copied recursively. Your remote originals are never moved or deleted, including when you drag a downloaded item out.
+- Uses macOS `scp` and your existing SSH configuration, aliases, keys, and terminal authentication prompts. Configure custom ports or jump hosts in `~/.ssh/config`. Quote the entire remote source when its path contains spaces; use `./name:with-colon` for a local filename containing a colon. The supported syntax is `[user@]host:path`, including bracketed IPv6 hosts.
+- Finishes all transfers before adding any entries. A failed or interrupted transfer cleans up that command's partial downloads. Different hosts/files with the same basename cannot overwrite each other.
+- Downloaded copies are session-only. Removing/clearing an unexported entry can delete its local copy; after a successful drag/copy out, the temporary source remains until quit so the destination has time to read it. Save anything you want to keep. Nothing is synchronized back to the server.
+- If delivery cannot be confirmed, temporary copies are retained and their paths are printed, since the app may already be using them. Both the CLI and running app must be **v0.9.0 or newer**; save temporary clips, quit, and reopen OpenShelf after upgrading.
+
+Authentication prompts appear in your terminal. OpenShelf does not store your SSH password or bypass host-key verification. Directory transfers follow symlinks according to the system `scp` behavior; only request directories you intend to download.
 
 ## Keyboard-first, too
 
@@ -131,7 +151,8 @@ Right-click a row for group actions. Click blank shelf space to clear the select
 
 ## What happens to my files?
 
-- Files and folders are **references to originals**. Removing an entry or clearing the shelf does not delete those originals.
+- Local files and folders are **references to originals**. Removing an entry or clearing the shelf does not delete those originals.
+- Remote files imported with `shelf host:path` are **temporary local copies**, not live remote references. Removing or dragging them out never deletes or changes the server's originals.
 - Imported text, images, and web links become temporary local files. Save anything you want to keep before removing it.
 - Temporary content copied or dragged out is kept until OpenShelf quits, so a destination has time to read it even after its shelf entry disappears.
 - A successful drag to another app removes those entries from the shelf. The destination determines whether the underlying file is copied or moved.

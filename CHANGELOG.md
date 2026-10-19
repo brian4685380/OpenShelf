@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.9.0 — 2026-10-20
+
+### Added
+
+- `shelf [user@]host:path` imports remote files and directories using the system SCP/SFTP client and existing SSH configuration, with local/remote inputs in one command.
+- Private temporary downloads, all-transfers-before-delivery validation, cancellation/failure cleanup, and explicit temporary-file ownership acknowledgment. Remote originals are never removed or modified.
+- Active-shelf delivery and independent temporary copies when remote downloads are copied between shelves. Successfully exported temporary sources remain readable until quit.
+
 ## 0.8.1 — 2026-10-20
 
 ### Fixed

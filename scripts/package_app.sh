@@ -14,7 +14,7 @@ set -euo pipefail
 #
 # Usage:
 #   ./scripts/package_app.sh
-#   ./scripts/package_app.sh 0.8.1
+#   ./scripts/package_app.sh 0.9.0
 # ============================================================
 
 APP_NAME="OpenShelf"

@@ -30,7 +30,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         _ = shelfManager
         setupMenuBarItem()
         commandReceiver = ShelfCommandReceiver(
-            addFiles: { [weak self] in self?.shelfManager.addAndShow(urls: $0) }
+            addFiles: { [weak self] in self?.shelfManager.addAndShow(urls: $0) },
+            addTemporaryFiles: { [weak self] urls, temporary in
+                self?.shelfManager.addAndShow(urls: urls, temporaryURLs: temporary)
+            }
         )
         commandReceiver?.processPendingRequests()
 

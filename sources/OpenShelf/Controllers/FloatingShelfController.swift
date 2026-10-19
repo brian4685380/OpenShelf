@@ -272,14 +272,14 @@ final class FloatingShelfController {
     }
 
     @discardableResult
-    func addAndShow(urls: [URL]) -> ShelfImportOutcome {
+    func addAndShow(urls: [URL], temporaryURLs: Set<URL> = []) -> ShelfImportOutcome {
         guard !urls.isEmpty else {
             return ShelfImportOutcome(addedCount: 0, skippedCount: 0)
         }
 
         var addedCount = 0
         for url in urls {
-            if store.add(url: url) { addedCount += 1 }
+            if store.add(url: url, isManagedByShelf: temporaryURLs.contains(url.standardizedFileURL)) { addedCount += 1 }
         }
 
         let outcome = ShelfImportOutcome(addedCount: addedCount, skippedCount: urls.count - addedCount)
