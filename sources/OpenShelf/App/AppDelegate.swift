@@ -371,6 +371,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         shelfManager.maintainAlwaysOnTop()
         shelfManager.prepareNextShelf()
         commandReceiver?.processPendingRequests()
+        ShelfWindowDiagnostics.record(shelves: shelfManager.shelves)
     }
 
     private func refreshFloatingWindowsNow() {

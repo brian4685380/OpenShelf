@@ -84,9 +84,9 @@ final class ShelfManager {
     /// need to create its AppKit windows mid-gesture.
     func prepareNextShelf() {
         guard preparedShelf == nil,
-            NSEvent.pressedMouseButtons == 0,
             !CGEventSource.buttonState(.combinedSessionState, button: .left),
-            !CGEventSource.buttonState(.combinedSessionState, button: .right) else { return }
+            !CGEventSource.buttonState(.combinedSessionState, button: .right),
+            !CGEventSource.buttonState(.combinedSessionState, button: .center) else { return }
         let shelf = FloatingShelfController()
         shelf.preparePanel()
         preparedShelf = shelf

@@ -49,10 +49,10 @@ final class FloatingShelfController {
             $0.makeKeyAndOrderFront(nil)
         },
         primaryMouseButtonPressed: @escaping @MainActor () -> Bool = {
-            if NSEvent.pressedMouseButtons & 1 != 0 {
-                return true
-            }
-
+            // AppKit may retain mouse-down after a drag ends in another
+            // application/Space. Only the live session state can release the
+            // recovery guard reliably; OR-ing in the cached value can leave
+            // this shelf stuck indefinitely while the edge triggers recover.
             return CGEventSource.buttonState(
                 .combinedSessionState,
                 button: .left
@@ -62,6 +62,11 @@ final class FloatingShelfController {
         self.name = name
         self.makePanelKey = makePanelKey
         self.primaryMouseButtonPressed = primaryMouseButtonPressed
+    }
+
+    var windowDiagnosticState: String {
+        "\(id) presented=\(isShelfPresented) collapsed=\(isCollapsed) externalDrag=\(isExternalDragActive) "
+            + "pendingRefresh=\(needsFloatingRefresh) mouseDown=\(isPrimaryMouseButtonPressed)"
     }
 
     func preparePanel() {

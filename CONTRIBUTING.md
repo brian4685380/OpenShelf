@@ -44,6 +44,13 @@ CI runs the full suite on Apple Silicon. Intel CI builds both products and runs 
 
 Historical behavior and manual acceptance notes are in [the requirements audit](docs/requirements-audit.md).
 
+For an intermittent fullscreen issue, save temporary shelf contents, quit the
+installed app, and run `OPENSHELF_WINDOW_DIAGNOSTICS=1 swift run OpenShelf`.
+The log compares AppKit's cached mouse state with the live macOS session state,
+and records each shelf's recovery guards and native window visibility. It does
+not record shelf filenames or other apps' window titles/content. Keep a shelf
+pinned while switching apps, and note which fullscreen app triggers the issue.
+
 ## Documentation screenshots
 
 Render the actual SwiftUI interface with synthetic fixtures (no personal files):

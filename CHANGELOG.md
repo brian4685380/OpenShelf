@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.10.0 — 2026-10-28
+
+### Fixed
+
+- Use live macOS mouse-button state when deferring shelf recovery during a drag, so a stale AppKit mouse-down cannot indefinitely block recovery after switching apps or fullscreen Spaces.
+
+### Developer diagnostics
+
+- Opt-in `OPENSHELF_WINDOW_DIAGNOSTICS=1` logs shelf recovery guards and window visibility/Space metadata when they change, without recording shelf paths or other apps' window contents.
+
 ## 0.9.0 — 2026-10-20
 
 ### Added

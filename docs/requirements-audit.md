@@ -320,3 +320,42 @@ developed separately and are not part of the 0.8.1 release artifacts.
   use the matching v0.9.0 app and CLI, restarting the app after upgrading.
 - The user accepted the feature with “LGTM” and requested release as v0.9.0.
   This acceptance does not imply automated testing against a real SSH host.
+
+## App-dependent fullscreen recovery — v0.10.0 (2026-10-28)
+
+The user reported failures over fullscreen ChatGPT, Finder, Word, and Beeper,
+but successful behavior over Desktop, Ghostty, Arc, and Preview. The installed
+app was still v0.8.1. Stage Manager was disabled on macOS 26.6.2.
+
+Four fresh diagnostic panels stayed above all apps in the user's manual check,
+including a panel using the existing floating level and collection behavior.
+A separate temporary native app was then launched after the panels existed and
+entered/exited a new fullscreen Space. The panels remained visible. Repeating
+that check with the actual shelf/drop-capture pair after an authorized restart
+also succeeded. These observations do not establish the cause of the original
+long-running instance's failure or rule out every launch-order scenario.
+
+Inspection found a concrete recovery deadlock: the default mouse-button guard
+returned true immediately for an AppKit cached mouse-down, even if the live
+combined-session state reported release. This prevented maintenance from
+clearing an interrupted drag and retrying floating recovery. Edge triggers
+already queried live session state independently. Shelf recovery and spare
+shelf preparation now also use live session state. Window levels and Space
+collection behavior are unchanged.
+
+A native regression temporarily supplies a stale AppKit mouse-down while the
+physical mouse is released. The previous code failed three assertions; the
+fix clears the stale drag and restores the floating policy. The full suite
+passed 128 tests with one optional screenshot skip. Existing tests continue
+to verify that a genuinely held mouse button defers window reordering.
+
+Opt-in metadata diagnostics record AppKit versus live mouse state, presentation
+and recovery guards, Space membership, occlusion, and window-server presence.
+They intentionally exclude shelf paths and other apps' window titles/content.
+The original app-dependent failure still requires observation if it recurs;
+the fresh-window and simulated stale-input checks are not proof of its cause.
+
+The user subsequently accepted the running build with “LGTM” and requested
+release and local installation. Version 0.10.0 includes this accepted fix.
+This acceptance does not imply automated switching through all seven named
+apps; that additional AppleScript-based check was not performed.

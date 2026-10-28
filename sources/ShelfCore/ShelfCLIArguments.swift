@@ -1,7 +1,7 @@
 import Foundation
 
 public enum OpenShelfVersion {
-    public static let current = "0.9.0"
+    public static let current = "0.10.0"
 }
 
 public enum ShelfCLIArguments: Equatable {

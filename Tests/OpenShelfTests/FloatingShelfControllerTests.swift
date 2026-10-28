@@ -1,10 +1,42 @@
 import AppKit
 import SwiftUI
 import XCTest
+import ObjectiveC
 @testable import OpenShelf
 
 @MainActor
 final class FloatingShelfControllerTests: XCTestCase {
+    func testStaleAppKitMouseStateCannotBlockFullscreenRecoveryAfterRelease() throws {
+        _ = NSApplication.shared
+        guard !CGEventSource.buttonState(.combinedSessionState, button: .left) else {
+            throw XCTSkip("Release the physical mouse button for this native state regression")
+        }
+        let controller = FloatingShelfController()
+        controller.show()
+        defer { controller.disposePanels() }
+        let panel = try XCTUnwrap(openShelfPanel())
+        let container = try XCTUnwrap(panel.contentView as? ShelfDropContainerView<ContentView>)
+        controller.beginVisibleShelfDrag()
+        panel.level = .normal
+
+        // Reproduce AppKit retaining the last mouse-down while another app
+        // owns the drag/Space transition and the physical button is released.
+        let getter = try XCTUnwrap(class_getClassMethod(NSEvent.self, #selector(getter: NSEvent.pressedMouseButtons)))
+        let cachedMouseDown: @convention(block) () -> UInt = { 1 }
+        let replacement = imp_implementationWithBlock(cachedMouseDown)
+        let original = method_setImplementation(getter, replacement)
+        defer {
+            method_setImplementation(getter, original)
+            imp_removeBlock(replacement)
+        }
+        XCTAssertEqual(NSEvent.pressedMouseButtons & 1, 1)
+
+        controller.refreshAlwaysOnTop()
+        XCTAssertTrue(controller.maintainAlwaysOnTop(), "A stale cache must not block the recovery heartbeat")
+        XCTAssertEqual(panel.level, .floating)
+        XCTAssertFalse(container.rootView.dropState.isTargeted, "A released drag must stop suppressing recovery")
+    }
+
     func testShelfDropWindowCanBePreparedBeforeFinderDragStarts() throws {
         _ = NSApplication.shared
         let controller = FloatingShelfController()
