@@ -56,6 +56,27 @@ final class ShelfWindowPolicyTests: XCTestCase {
         XCTAssertFalse(capture.isKeyWindow)
     }
 
+    func testSameLevelWindowFromAnotherAppCoversShelf() {
+        // Shelf at AppKit y 300...420 on a 1000pt-tall primary display is
+        // CoreGraphics y 580...700.
+        let shelf = NSRect(x: 100, y: 300, width: 200, height: 120)
+        func covered(_ window: [String: Any]) -> Bool {
+            ShelfWindowPolicy.isCovered(frame: shelf, level: .floating, by: [window],
+                                        ownProcessID: 1, primaryScreenMaxY: 1000)
+        }
+        func window(pid: pid_t = 2, layer: Int = 3, alpha: Double = 1, y: CGFloat = 600) -> [String: Any] {
+            [kCGWindowOwnerPID as String: pid, kCGWindowLayer as String: layer,
+             kCGWindowAlpha as String: alpha,
+             kCGWindowBounds as String: CGRect(x: 150, y: y, width: 100, height: 50).dictionaryRepresentation]
+        }
+
+        XCTAssertTrue(covered(window()))
+        XCTAssertFalse(covered(window(pid: 1)), "Own shelves and edge triggers are managed separately")
+        XCTAssertFalse(covered(window(layer: 25)), "Reordering cannot beat a higher level")
+        XCTAssertFalse(covered(window(alpha: 0)))
+        XCTAssertFalse(covered(window(y: 100)), "A window elsewhere on screen does not cover the shelf")
+    }
+
     private func makePanel() -> SpaceTrackingPanel {
         _ = NSApplication.shared
         let panel = SpaceTrackingPanel(contentRect: NSRect(x: 50, y: 50, width: 100, height: 80),

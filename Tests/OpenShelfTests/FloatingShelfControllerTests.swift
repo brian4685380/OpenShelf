@@ -396,7 +396,11 @@ final class FloatingShelfControllerTests: XCTestCase {
         let previousPolicy = NSApp.activationPolicy()
         NSApp.setActivationPolicy(.accessory)
         defer { NSApp.setActivationPolicy(previousPolicy) }
-        let controller = FloatingShelfController(primaryMouseButtonPressed: { false })
+        // Other running apps (including an installed OpenShelf's edge
+        // triggers) may overlap the test shelf; keep this test about the
+        // shelf's own window state.
+        let controller = FloatingShelfController(primaryMouseButtonPressed: { false },
+                                                 isCoveredByOtherApplication: { _ in false })
         controller.show()
         defer { controller.disposePanels() }
         let panel = try XCTUnwrap(openShelfPanel())
@@ -416,6 +420,23 @@ final class FloatingShelfControllerTests: XCTestCase {
         let ids = order.compactMap { $0[kCGWindowNumber as String] as? Int }
         XCTAssertLessThan(try XCTUnwrap(ids.firstIndex(of: window.windowNumber)),
                           try XCTUnwrap(ids.firstIndex(of: panel.windowNumber)))
+    }
+
+    func testShelfCoveredByAnotherApplicationIsReordered() throws {
+        _ = NSApplication.shared
+        var covered = false
+        var mouseDown = false
+        let controller = FloatingShelfController(primaryMouseButtonPressed: { mouseDown },
+                                                 isCoveredByOtherApplication: { _ in covered })
+        controller.show()
+        defer { controller.disposePanels() }
+        XCTAssertFalse(controller.maintainAlwaysOnTop())
+
+        covered = true
+        mouseDown = true
+        XCTAssertFalse(controller.maintainAlwaysOnTop(), "Never reorder a drag destination mid-gesture")
+        mouseDown = false
+        XCTAssertTrue(controller.maintainAlwaysOnTop())
     }
 
     func testInterruptedDragDoesNotPermanentlyBlockSpaceRefresh() throws {

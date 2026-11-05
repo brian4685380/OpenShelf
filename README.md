@@ -43,7 +43,7 @@ Drag files to either screen edge to start a shelf. Drop more onto that shelf to 
 
 OpenShelf lives in the menu bar, not the Dock.
 
-**v0.10.0** improves shelf recovery after switching apps or fullscreen Spaces: a stale mouse-down can no longer leave the shelf stuck waiting for a finished drag. Includes remote imports with `shelf myserver:/path/to/file`. See the [release notes](docs/releases/v0.10.0.md).
+**v0.10.1** keeps the shelf on top when another app raises its own floating window over it, such as picture in picture or call controls. See the [release notes](docs/releases/v0.10.1.md).
 
 ## Install
 

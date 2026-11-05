@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.10.1 — 2026-11-05
+
+### Fixed
+
+- Bring the shelf back on top when another application orders its own window above it at the same level (picture in picture, call controls, other utilities) without activating or being clicked. The recovery heartbeat now asks WindowServer whether another app's window overlaps the shelf; it still never reorders during a drag and leaves windows at higher levels alone.
+
 ## 0.10.0 — 2026-10-28
 
 ### Fixed

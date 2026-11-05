@@ -31,6 +31,42 @@ enum ShelfWindowPolicy {
             || panel.hidesOnDeactivate || panel.collectionBehavior != collectionBehavior
     }
 
+    /// Another application can order its own floating window (picture in
+    /// picture, call controls, another utility) above the shelf without
+    /// activating or receiving a click, so no notification fires and the
+    /// panel's own flags stay healthy. Ask WindowServer what is above it.
+    static func isCoveredByOtherApplication(_ panel: NSPanel) -> Bool {
+        guard panel.isVisible, panel.windowNumber > 0,
+            let primaryScreen = NSScreen.screens.first
+        else { return false }
+        let windowsAbove = CGWindowListCopyWindowInfo(
+            [.optionOnScreenAboveWindow, .excludeDesktopElements],
+            CGWindowID(panel.windowNumber)
+        ) as? [[String: Any]] ?? []
+        return isCovered(frame: panel.frame, level: panel.level, by: windowsAbove,
+                         ownProcessID: getpid(), primaryScreenMaxY: primaryScreen.frame.maxY)
+    }
+
+    /// Only windows at or below the shelf's level count: reordering cannot
+    /// win against a higher level and would just reorder on every heartbeat.
+    static func isCovered(
+        frame: NSRect, level: NSWindow.Level, by windowsAbove: [[String: Any]],
+        ownProcessID: pid_t, primaryScreenMaxY: CGFloat
+    ) -> Bool {
+        windowsAbove.contains { window in
+            guard (window[kCGWindowOwnerPID as String] as? pid_t) != ownProcessID,
+                let layer = window[kCGWindowLayer as String] as? Int, layer <= level.rawValue,
+                (window[kCGWindowAlpha as String] as? Double ?? 1) > 0,
+                let boundsDictionary = window[kCGWindowBounds as String] as? NSDictionary,
+                let bounds = CGRect(dictionaryRepresentation: boundsDictionary as CFDictionary)
+            else { return false }
+            // CoreGraphics bounds use a top-left origin on the primary display.
+            let appKitBounds = NSRect(x: bounds.minX, y: primaryScreenMaxY - bounds.maxY,
+                                      width: bounds.width, height: bounds.height)
+            return !appKitBounds.intersection(frame).isEmpty
+        }
+    }
+
     /// Call only when no native drag is in progress. Ordering an already
     /// ordered-in window frontmost does not repair stale Space membership.
     /// Temporarily move an affected panel to the current Space, then restore

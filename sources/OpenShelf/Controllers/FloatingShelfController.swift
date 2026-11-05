@@ -13,6 +13,7 @@ final class FloatingShelfController {
     private let presentation = ShelfPresentationState()
     private let makePanelKey: @MainActor (NSPanel) -> Void
     private let primaryMouseButtonPressed: @MainActor () -> Bool
+    private let isCoveredByOtherApplication: @MainActor (NSPanel) -> Bool
 
     private var panel: NSPanel?
     private var visibleDropCapturePanel: NSPanel?
@@ -57,11 +58,15 @@ final class FloatingShelfController {
                 .combinedSessionState,
                 button: .left
             )
+        },
+        isCoveredByOtherApplication: @escaping @MainActor (NSPanel) -> Bool = {
+            ShelfWindowPolicy.isCoveredByOtherApplication($0)
         }
     ) {
         self.name = name
         self.makePanelKey = makePanelKey
         self.primaryMouseButtonPressed = primaryMouseButtonPressed
+        self.isCoveredByOtherApplication = isCoveredByOtherApplication
     }
 
     var windowDiagnosticState: String {
@@ -245,7 +250,8 @@ final class FloatingShelfController {
         let captureNeedsRecovery = !isCollapsed && visibleDropCapturePanel.map {
             ShelfWindowPolicy.needsRecovery($0) || $0.frame != panel.frame
         } == true
-        if needsFloatingRefresh || ShelfWindowPolicy.needsRecovery(panel) || captureNeedsRecovery {
+        if needsFloatingRefresh || ShelfWindowPolicy.needsRecovery(panel) || captureNeedsRecovery
+            || isCoveredByOtherApplication(panel) {
             refreshAlwaysOnTop()
             return true
         }

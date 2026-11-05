@@ -359,3 +359,29 @@ The user subsequently accepted the running build with “LGTM” and requested
 release and local installation. Version 0.10.0 includes this accepted fix.
 This acceptance does not imply automated switching through all seven named
 apps; that additional AppleScript-based check was not performed.
+
+## Same-level cover by another application — v0.10.1 (2026-11-05)
+
+The user reported the shelf being covered by other applications' windows on
+the current Desktop, with no consistent triggering app. The shelf uses the
+`.floating` level, so another process's window at that level ordered later
+sits above it. Recovery reordered only on app activation, Space changes,
+global mouse-up, or unhealthy window flags; the heartbeat deliberately left
+a healthy shelf alone, so a window raised without activation or a click kept
+the shelf covered.
+
+A two-process probe confirmed that WindowServer reports another process's
+floating panel above the shelf, and that one `orderFrontRegardless` restores
+it. The heartbeat now queries windows above the shelf and reorders when one
+from another process, at or below the shelf's level and not fully
+transparent, overlaps it. Drag guards are unchanged. Higher-level windows
+are ignored because reordering cannot beat them. Window level and Space
+collection behavior are unchanged.
+
+Unit tests cover overlap, own-process, higher-level, transparent, and non-
+overlapping cases, plus a controller regression that a covered shelf is
+reordered only once the mouse is released. The cover check is injectable so
+the healthy-heartbeat test no longer depends on other running apps. The full
+suite passed 131 tests with one optional screenshot skip. The build was
+installed locally and the user requested release as v0.10.1; no automated
+check against specific third-party apps was performed.
